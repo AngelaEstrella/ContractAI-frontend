@@ -1,8 +1,11 @@
+import Navbar from "@/components/home/Navbar";
+import HeroSection from "@/components/home/HeroSection";
+
 export default function HomePage() {
   return (
-    <main>
-      <h1>ContractAI</h1>
-      <p>Intelligence for the Modern Notary</p>
+    <main className="min-h-screen">
+      <Navbar />
+      <HeroSection />
     </main>
   );
 }
