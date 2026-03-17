@@ -3,15 +3,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, User, LogOut } from "lucide-react";
+import { useAuthStore } from "@/store";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const router = useRouter();
+  const { user, logout } = useAuthStore();
 
-  const userName = "Alex Carter";
-  const userRole = "Notario";
+  const userName = user?.name || "Alex Carter";
+  const userRole = user?.role || "Notario";
+  const userInitials = userName.split(" ").map((n) => n[0]).join("");
 
   const handleLogout = () => {
+    logout();
     router.push("/");
   };
 
@@ -35,7 +39,7 @@ export default function Header() {
             className="flex items-center gap-3 hover:bg-gray-50 rounded-lg p-2 transition-colors"
           >
             <div className="w-10 h-10 bg-[var(--primary)] rounded-full flex items-center justify-center">
-              <span className="text-white font-medium">AC</span>
+              <span className="text-white font-medium">{userInitials}</span>
             </div>
             <div className="text-left">
               <p className="text-sm font-medium text-gray-800">{userName}</p>

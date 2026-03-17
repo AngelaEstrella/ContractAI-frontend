@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, FileText, Bot, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useState } from "react";
+import { useSidebarStore } from "@/store";
 
 const menuItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -14,7 +15,7 @@ const menuItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const { isCollapsed, toggleSidebar } = useSidebarStore();
   const [isHoveringLogo, setIsHoveringLogo] = useState(false);
 
   return (
@@ -27,7 +28,7 @@ export default function Sidebar() {
       <div className="flex items-center px-4 py-6">
         <div className={`flex items-center gap-3 ${isCollapsed ? "justify-center w-full" : ""}`}>
           <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={toggleSidebar}
             onMouseEnter={() => setIsHoveringLogo(true)}
             onMouseLeave={() => setIsHoveringLogo(false)}
             className="relative group"
