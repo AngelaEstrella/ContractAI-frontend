@@ -123,8 +123,7 @@ export default function ContractsPage() {
       <div className="bg-white rounded-xl shadow overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500">
-            <tr className="text-left">
-              <th className="p-4">ID</th> {/* 👈 nueva columna */}
+            <tr className="text-left"><th className="p-4">ID</th>
               <th>Contrato</th>
               <th>Cliente</th>
               <th>Tipo</th>
@@ -138,8 +137,7 @@ export default function ContractsPage() {
 
           <tbody className="divide-y">
             {filtered.map((c) => (
-              <tr key={c.id}>
-                <td className="p-4 font-medium">{c.id}</td> {/* 👈 ID */}
+              <tr key={c.id}><td className="p-4 font-medium">{c.id}</td>
                 <td>{c.name}</td>
                 <td>{c.client}</td>
                 <td>{c.type}</td>
