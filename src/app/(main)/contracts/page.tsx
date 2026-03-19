@@ -1,63 +1,42 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getDocuments } from "@/lib/api";
+import { Document } from "@/types/api.types";
 import AddContractForm from "./AddContractForm";
 
-type Contract = {
-  id: number;
-  name: string;
-  client: string;
-  type: string;
-  start: string;
-  end: string;
-  value: string;
-  licenses: number;
-  status: "Activo" | "Por vencer" | "Expirado";
-};
-
-const mockContracts: Contract[] = [
-  {
-    id: 1,
-    name: "Plataforma Corporativa Pro",
-    client: "GlobalMedia S.A.",
-    type: "Servicios",
-    start: "01 Mar 2024",
-    end: "28 Feb 2026",
-    value: "$120,000",
-    licenses: 48,
-    status: "Por vencer",
-  },
-  {
-    id: 2,
-    name: "Soporte Técnico Anual",
-    client: "Nexus Solutions",
-    type: "Soporte",
-    start: "01 Ene 2025",
-    end: "31 Dic 2025",
-    value: "$67,290",
-    licenses: 85,
-    status: "Activo",
-  },
-];
-
 export default function ContractsPage() {
-  const [contracts, setContracts] = useState<Contract[]>(mockContracts);
+  const [contracts, setContracts] = useState<Document[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
 
-  // ✅ ID progresivo
-  const addContract = (newContract: Omit<Contract, "id">) => {
-    setContracts((prev) => {
-      const lastId =
-        prev.length > 0 ? Math.max(...prev.map((c) => c.id)) : 0;
+  // Cargar contratos al montar el componente
+  useEffect(() => {
+    loadContracts();
+  }, []);
 
-      return [...prev, { ...newContract, id: lastId + 1 }];
-    });
+  const loadContracts = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getDocuments();
+      setContracts(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al cargar contratos");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addContract = (newContract: Document) => {
+    setContracts((prev) => [...prev, newContract]);
   };
 
   const filtered = contracts.filter((c) => {
-    const matchFilter = filter === "all" || c.status === filter;
+    const matchFilter = filter === "all" || c.state === filter;
     const matchSearch =
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.client.toLowerCase().includes(search.toLowerCase());
@@ -67,16 +46,52 @@ export default function ContractsPage() {
 
   const statusStyle = (status: string) => {
     switch (status) {
-      case "Activo":
+      case "ACTIVO":
         return "bg-green-100 text-green-600";
-      case "Por vencer":
+      case "POR_VENCER":
         return "bg-yellow-100 text-yellow-600";
-      case "Expirado":
+      case "EXPIRADO":
         return "bg-red-100 text-red-500";
       default:
         return "";
     }
   };
+
+  const statusLabel = (status: string) => {
+    switch (status) {
+      case "ACTIVO":
+        return "Activo";
+      case "POR_VENCER":
+        return "Por vencer";
+      case "EXPIRADO":
+        return "Expirado";
+      default:
+        return status;
+    }
+  };
+
+  if (loading) {
+  return (
+    <div className="p-6 bg-gray-50 min-h-screen flex flex-col items-center justify-center">
+      <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+      <p className="text-gray-500 text-lg">Cargando contratos...</p>
+    </div>
+  );
+}
+
+  if (error) {
+    return (
+      <div className="p-6 bg-gray-50 min-h-screen flex flex-col items-center justify-center">
+        <p className="text-red-500 mb-4">{error}</p>
+        <button
+          onClick={loadContracts}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+        >
+          Reintentar
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
@@ -92,7 +107,7 @@ export default function ContractsPage() {
         </button>
       </div>
 
-      {/* ✅ MODAL FLOTANTE REAL */}
+      {/* MODAL FLOTANTE */}
       {showForm && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
@@ -102,7 +117,6 @@ export default function ContractsPage() {
             className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-6 relative"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* cerrar */}
             <button
               onClick={() => setShowForm(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-black"
@@ -128,7 +142,7 @@ export default function ContractsPage() {
         />
 
         <div className="flex gap-2">
-          {["all", "Activo", "Por vencer", "Expirado"].map((f) => (
+          {["all", "ACTIVO", "POR_VENCER", "EXPIRADO"].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -136,7 +150,7 @@ export default function ContractsPage() {
                 filter === f ? "bg-black text-white" : "bg-gray-200"
               }`}
             >
-              {f === "all" ? "Todos" : f}
+              {f === "all" ? "Todos" : statusLabel(f)}
             </button>
           ))}
         </div>
@@ -166,13 +180,13 @@ export default function ContractsPage() {
                 <td>{c.name}</td>
                 <td>{c.client}</td>
                 <td>{c.type}</td>
-                <td>{c.start}</td>
-                <td>{c.end}</td>
-                <td>{c.value}</td>
+                <td>{c.start_date}</td>
+                <td>{c.end_date}</td>
+                <td>{c.currency} {c.value.toLocaleString()}</td>
                 <td>{c.licenses}</td>
                 <td>
-                  <span className={`px-2 py-1 rounded ${statusStyle(c.status)}`}>
-                    {c.status}
+                  <span className={`px-2 py-1 rounded ${statusStyle(c.state)}`}>
+                    {statusLabel(c.state)}
                   </span>
                 </td>
               </tr>

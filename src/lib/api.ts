@@ -132,7 +132,7 @@ export async function deleteUser(id: number): Promise<void> {
 // CHATBOT ENDPOINTS
 // ============================================
 export async function sendMessage(data: ChatRequest): Promise<ChatResponse> {
-  return fetchAPI<ChatResponse>('/chatbot', {
+  return fetchAPI<ChatResponse>('/chatbot/', {
     method: 'POST',
     body: JSON.stringify(data),
   }, TIMEOUTS.AI);
@@ -159,14 +159,19 @@ export async function getConversationById(id: number): Promise<ConversationWithC
 export async function uploadDocument(data: DocumentCreateRequest): Promise<Document> {
   const formData = new FormData();
   formData.append('file', data.file);
-  formData.append('name', data.name);
-  formData.append('client', data.client);
-  formData.append('type', data.type);
-  formData.append('start_date', data.start_date);
-  formData.append('end_date', data.end_date);
-  formData.append('value', data.value.toString());
-  formData.append('currency', data.currency);
-  formData.append('licenses', data.licenses.toString());
+  
+  // El backend espera 'document' como un string JSON
+  const documentData = {
+    name: data.name,
+    client: data.client,
+    type: data.type,
+    start_date: data.start_date,
+    end_date: data.end_date,
+    value: data.value,
+    currency: data.currency,
+    licenses: data.licenses,
+  };
+  formData.append('document', JSON.stringify(documentData));
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.UPLOAD);
@@ -174,7 +179,7 @@ export async function uploadDocument(data: DocumentCreateRequest): Promise<Docum
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
 
   try {
-    const response = await fetch(`${API_BASE_URL}/documents`, {
+    const response = await fetch(`${API_BASE_URL}/documents/`, {
       method: 'POST',
       body: formData,
       signal: controller.signal,
@@ -187,7 +192,7 @@ export async function uploadDocument(data: DocumentCreateRequest): Promise<Docum
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.message || 'Error al subir documento');
+      throw new Error(errorData.detail || 'Error al subir documento');
     }
 
     return response.json();
