@@ -13,6 +13,7 @@ import {
   ConversationWithContent,
   Document,
   DocumentCreateRequest,
+  DocumentUpdateRequest,
 } from '@/types/api.types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -215,4 +216,17 @@ export async function deleteDocument(id: number): Promise<void> {
   return fetchAPI<void>(`/documents/${id}`, {
     method: 'DELETE',
   }, TIMEOUTS.AUTH);
+}
+
+export async function getDocumentById(id: number): Promise<Document> {
+  return fetchAPI<Document>(`/documents/${id}`, {
+    method: 'GET',
+  }, TIMEOUTS.DEFAULT);
+}
+
+export async function updateDocument(id: number, data: DocumentUpdateRequest): Promise<Document> {
+  return fetchAPI<Document>(`/documents/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  }, TIMEOUTS.DEFAULT);
 }

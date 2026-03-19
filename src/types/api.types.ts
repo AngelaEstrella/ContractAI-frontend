@@ -102,6 +102,17 @@ export interface DocumentCreateRequest {
   licenses: number;
 }
 
+export interface DocumentUpdateRequest {
+  name?: string;
+  client?: string;
+  type?: DocumentType;
+  start_date?: string;
+  end_date?: string;
+  value?: number;
+  currency?: string;
+  licenses?: number;
+}
+
 // ============================================
 // API RESPONSE TYPES
 // ============================================
