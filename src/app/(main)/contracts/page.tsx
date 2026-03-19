@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getDocuments, deleteDocument } from "@/lib/api";
+import { getDocuments, deleteDocument, getDocumentFileUrl } from "@/lib/api";
 import { Document } from "@/types/api.types";
 import AddContractForm from "./AddContractForm";
 import { Eye, Pencil, Trash2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X, AlertTriangle } from "lucide-react";
@@ -133,8 +133,14 @@ export default function ContractsPage() {
   };
 
   // Handlers de acciones
-  const handleView = (contract: Document) => {
-    router.push(`/contracts/${contract.id}`);
+  const handleView = async (contract: Document) => {
+    try {
+      const signedUrl = await getDocumentFileUrl(contract.id);
+      window.open(signedUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error("Error al abrir documento:", err);
+      alert(err instanceof Error ? err.message : "No se pudo abrir el documento");
+    }
   };
 
   const handleEdit = (contract: Document) => {

@@ -113,6 +113,10 @@ export interface DocumentUpdateRequest {
   licenses?: number;
 }
 
+export interface DocumentFileUrlResponse {
+  url: string;
+}
+
 // ============================================
 // API RESPONSE TYPES
 // ============================================

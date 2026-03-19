@@ -13,6 +13,7 @@ import {
   ConversationWithContent,
   Document,
   DocumentCreateRequest,
+  DocumentFileUrlResponse,
   DocumentUpdateRequest,
 } from '@/types/api.types';
 
@@ -55,7 +56,7 @@ export async function fetchAPI<T>(
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.message || 'Error en la petición');
+      throw new Error(errorData.detail || errorData.message || 'Error en la petición');
     }
 
     // Si es 204 No Content, retornar null
@@ -222,6 +223,13 @@ export async function getDocumentById(id: number): Promise<Document> {
   return fetchAPI<Document>(`/documents/${id}`, {
     method: 'GET',
   }, TIMEOUTS.DEFAULT);
+}
+
+export async function getDocumentFileUrl(id: number): Promise<string> {
+  const response = await fetchAPI<DocumentFileUrlResponse>(`/documents/${id}/file-url`, {
+    method: 'GET',
+  }, TIMEOUTS.DEFAULT);
+  return response.url;
 }
 
 export async function updateDocument(id: number, data: DocumentUpdateRequest): Promise<Document> {
