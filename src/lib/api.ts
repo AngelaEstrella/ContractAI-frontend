@@ -233,8 +233,52 @@ export async function getDocumentFileUrl(id: number): Promise<string> {
 }
 
 export async function updateDocument(id: number, data: DocumentUpdateRequest): Promise<Document> {
-  return fetchAPI<Document>(`/documents/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(data),
-  }, TIMEOUTS.DEFAULT);
+  const formData = new FormData();
+
+  if (data.file) {
+    formData.append('file', data.file);
+  }
+
+  const documentData = {
+    ...(data.name !== undefined && { name: data.name }),
+    ...(data.client !== undefined && { client: data.client }),
+    ...(data.type !== undefined && { type: data.type }),
+    ...(data.start_date !== undefined && { start_date: data.start_date }),
+    ...(data.end_date !== undefined && { end_date: data.end_date }),
+    ...(data.value !== undefined && { value: data.value }),
+    ...(data.currency !== undefined && { currency: data.currency }),
+    ...(data.licenses !== undefined && { licenses: data.licenses }),
+  };
+  formData.append('document', JSON.stringify(documentData));
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.UPLOAD);
+
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/documents/${id}`, {
+      method: 'PATCH',
+      body: formData,
+      signal: controller.signal,
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || errorData.message || 'Error al actualizar documento');
+    }
+
+    return response.json();
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('La actualización excedió el tiempo límite');
+    }
+    throw error;
+  }
 }

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { uploadDocument, updateDocument } from "@/lib/api";
 import { Document, DocumentType } from "@/types/api.types";
-import { Upload, X, FileText } from "lucide-react";
+import { Upload, X } from "lucide-react";
 
 type Props = {
   readonly onAdd: (c: Document) => void;
@@ -125,10 +125,10 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
       return;
     }
 
-    // En modo edición, si se eliminó el original, debe haber uno nuevo
-    if (editMode && !keepOriginalFile && !file) {
+    // En modo edición, siempre se requiere un nuevo PDF
+    if (editMode && !file) {
       setFileError(true);
-      setError("Debes subir un nuevo archivo PDF o mantener el original");
+      setError("Debes subir un nuevo archivo PDF para guardar cambios");
       return;
     }
 
@@ -150,11 +150,8 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
           value: form.value,
           currency: form.currency,
           licenses: form.licenses,
+          file: file || undefined,
         });
-        
-        // TODO: Si tu API soporta actualizar el archivo PDF en edición,
-        // aquí deberías manejar el caso donde `file` no es null
-        // y enviar el nuevo archivo al backend
       } else {
         // Modo crear: llamar a uploadDocument
         resultDocument = await uploadDocument({
