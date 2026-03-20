@@ -24,6 +24,7 @@ export interface User {
   id: number;
   email: string;
   role: UserRole;
+  name?: string;
 }
 
 export interface UserCreateRequest {
@@ -73,11 +74,50 @@ export interface ConversationWithContent extends Conversation {
 // ============================================
 // DOCUMENT TYPES
 // ============================================
+export type DocumentType = 'SERVICIOS' | 'LICENCIAS' | 'SOPORTE';
+export type DocumentState = 'ACTIVO' | 'POR_VENCER' | 'EXPIRADO';
+
 export interface Document {
   id: number;
-  filename: string;
-  size: number;
-  uploaded_at: string;
+  name: string;
+  client: string;
+  type: DocumentType;
+  start_date: string;
+  end_date: string;
+  value: number;
+  currency: string;
+  licenses: number;
+  state: DocumentState;
+  file_path?: string | null;
+  file_name?: string | null;
+}
+
+export interface DocumentCreateRequest {
+  file: File;
+  name: string;
+  client: string;
+  type: DocumentType;
+  start_date: string;
+  end_date: string;
+  value: number;
+  currency: string;
+  licenses: number;
+}
+
+export interface DocumentUpdateRequest {
+  name?: string;
+  client?: string;
+  type?: DocumentType;
+  start_date?: string;
+  end_date?: string;
+  value?: number;
+  currency?: string;
+  licenses?: number;
+  file?: File;
+}
+
+export interface DocumentFileUrlResponse {
+  url: string;
 }
 
 // ============================================
