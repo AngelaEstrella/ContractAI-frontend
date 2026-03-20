@@ -68,7 +68,7 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
       setKeepOriginalFile(false);
-      setFileError(false); // Limpiar error cuando suben archivo
+      setFileError(false);
     }
   };
 
@@ -92,7 +92,7 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
       if (droppedFile.type === "application/pdf") {
         setFile(droppedFile);
         setKeepOriginalFile(false);
-        setFileError(false); // Limpiar error cuando suben archivo
+        setFileError(false);
       } else {
         setError("Solo se permiten archivos PDF");
       }
@@ -111,7 +111,7 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
   const hasValidFile = file !== null || keepOriginalFile;
 
   const handleSubmit = async () => {
-    // Validar archivo y mostrar error visual si falta
+    // Siempre debe haber un archivo (original o nuevo)
     if (!hasValidFile) {
       setFileError(true);
       setError("Debes tener un archivo PDF asociado al contrato");
@@ -125,13 +125,6 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
       return;
     }
 
-    // En modo edición, siempre se requiere un nuevo PDF
-    if (editMode && !file) {
-      setFileError(true);
-      setError("Debes subir un nuevo archivo PDF para guardar cambios");
-      return;
-    }
-
     try {
       setLoading(true);
       setError(null);
@@ -141,6 +134,7 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
 
       if (editMode && initialData) {
         // Modo edición: llamar a updateDocument
+        // Si hay archivo nuevo, enviarlo; si no, solo metadatos
         resultDocument = await updateDocument(initialData.id, {
           name: form.name,
           client: form.client,
@@ -394,7 +388,7 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
               <p className="text-xs text-slate-400">Solo archivos PDF</p>
               {fileError && (
                 <p className="text-xs text-red-500 mt-2">
-                   Debes subir un archivo PDF para continuar
+                  ⚠️ Debes subir un archivo PDF para continuar
                 </p>
               )}
             </div>
