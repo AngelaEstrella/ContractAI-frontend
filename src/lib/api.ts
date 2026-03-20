@@ -27,29 +27,41 @@ export const TIMEOUTS = {
   AI: 120000,       // 120 seg - operaciones con IA (chatbot)
 };
 
+const DOCUMENTS_CACHE_TTL_MS = 15_000;
+
+let documentsCache: { data: Document[]; timestamp: number } | null = null;
+let documentsInFlight: Promise<Document[]> | null = null;
+
 // ============================================
 // FETCH BASE FUNCTION
 // ============================================
 export async function fetchAPI<T>(
   endpoint: string,
   options: RequestInit = {},
-  timeout: number = TIMEOUTS.DEFAULT
+  timeout: number = TIMEOUTS.DEFAULT,
+  includeAuth: boolean = true
 ): Promise<T> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-  // Obtener token del localStorage si existe
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const token = includeAuth && typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const headers = new Headers(options.headers ?? {});
+  const hasBody = options.body !== undefined && options.body !== null;
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+
+  if (hasBody && !isFormData && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
 
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-        ...options.headers,
-      },
+      headers,
     });
 
     clearTimeout(timeoutId);
@@ -197,7 +209,10 @@ export async function uploadDocument(data: DocumentCreateRequest): Promise<Docum
       throw new Error(errorData.detail || 'Error al subir documento');
     }
 
-    return response.json();
+    const createdDocument = await response.json();
+    documentsCache = null;
+    documentsInFlight = null;
+    return createdDocument;
   } catch (error) {
     clearTimeout(timeoutId);
     if (error instanceof Error && error.name === 'AbortError') {
@@ -208,15 +223,36 @@ export async function uploadDocument(data: DocumentCreateRequest): Promise<Docum
 }
 
 export async function getDocuments(): Promise<Document[]> {
-  return fetchAPI<Document[]>('/documents', {
+  if (documentsCache && Date.now() - documentsCache.timestamp < DOCUMENTS_CACHE_TTL_MS) {
+    return documentsCache.data;
+  }
+
+  if (documentsInFlight) {
+    return documentsInFlight;
+  }
+
+  documentsInFlight = fetchAPI<Document[]>('/documents/', {
     method: 'GET',
-  }, TIMEOUTS.DEFAULT);
+  }, TIMEOUTS.DEFAULT, false)
+    .then((documents) => {
+      documentsCache = { data: documents, timestamp: Date.now() };
+      return documents;
+    })
+    .finally(() => {
+      documentsInFlight = null;
+    });
+
+  return documentsInFlight;
 }
 
 export async function deleteDocument(id: number): Promise<void> {
-  return fetchAPI<void>(`/documents/${id}`, {
+  const result = await fetchAPI<void>(`/documents/${id}`, {
     method: 'DELETE',
   }, TIMEOUTS.AUTH);
+
+  documentsCache = null;
+  documentsInFlight = null;
+  return result;
 }
 
 export async function getDocumentById(id: number): Promise<Document> {
@@ -273,7 +309,10 @@ export async function updateDocument(id: number, data: DocumentUpdateRequest): P
       throw new Error(errorData.detail || errorData.message || 'Error al actualizar documento');
     }
 
-    return response.json();
+    const updatedDocument = await response.json();
+    documentsCache = null;
+    documentsInFlight = null;
+    return updatedDocument;
   } catch (error) {
     clearTimeout(timeoutId);
     if (error instanceof Error && error.name === 'AbortError') {
