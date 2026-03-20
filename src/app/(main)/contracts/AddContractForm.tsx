@@ -17,6 +17,13 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
   const [error, setError] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  
+  // Estado para controlar si se mantiene el archivo original en modo edición
+  const [keepOriginalFile, setKeepOriginalFile] = useState(editMode);
+  
+  // Estado para mostrar error de archivo requerido
+  const [fileError, setFileError] = useState(false);
+  
   const [form, setForm] = useState({
     name: "",
     client: "",
@@ -41,6 +48,8 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
         currency: initialData.currency,
         licenses: initialData.licenses,
       });
+      // En modo edición, inicialmente mantenemos el archivo original
+      setKeepOriginalFile(true);
     }
   }, [editMode, initialData]);
 
@@ -58,6 +67,8 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
+      setKeepOriginalFile(false);
+      setFileError(false); // Limpiar error cuando suben archivo
     }
   };
 
@@ -80,6 +91,8 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
       const droppedFile = e.dataTransfer.files[0];
       if (droppedFile.type === "application/pdf") {
         setFile(droppedFile);
+        setKeepOriginalFile(false);
+        setFileError(false); // Limpiar error cuando suben archivo
       } else {
         setError("Solo se permiten archivos PDF");
       }
@@ -90,16 +103,39 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
     setFile(null);
   };
 
+  const removeOriginalFile = () => {
+    setKeepOriginalFile(false);
+  };
+
+  // Verificar si hay un archivo válido (nuevo o manteniendo el original)
+  const hasValidFile = file !== null || keepOriginalFile;
+
   const handleSubmit = async () => {
-    // Solo requerir archivo en modo crear
+    // Validar archivo y mostrar error visual si falta
+    if (!hasValidFile) {
+      setFileError(true);
+      setError("Debes tener un archivo PDF asociado al contrato");
+      return;
+    }
+
+    // En modo crear, siempre se requiere un archivo nuevo
     if (!editMode && !file) {
+      setFileError(true);
       setError("Debes seleccionar un archivo");
+      return;
+    }
+
+    // En modo edición, si se eliminó el original, debe haber uno nuevo
+    if (editMode && !keepOriginalFile && !file) {
+      setFileError(true);
+      setError("Debes subir un nuevo archivo PDF o mantener el original");
       return;
     }
 
     try {
       setLoading(true);
       setError(null);
+      setFileError(false);
 
       let resultDocument: Document;
 
@@ -115,6 +151,10 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
           currency: form.currency,
           licenses: form.licenses,
         });
+        
+        // TODO: Si tu API soporta actualizar el archivo PDF en edición,
+        // aquí deberías manejar el caso donde `file` no es null
+        // y enviar el nuevo archivo al backend
       } else {
         // Modo crear: llamar a uploadDocument
         resultDocument = await uploadDocument({
@@ -205,7 +245,7 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
           <input
             name="licenses"
             type="number"
-            value={form.licenses}
+            value={form.licenses || ""}
             placeholder="0"
             onChange={handleChange}
             className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
@@ -249,7 +289,7 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
             <input
               name="value"
               type="number"
-              value={form.value}
+              value={form.value || ""}
               placeholder="0.00"
               onChange={handleChange}
               className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
@@ -267,29 +307,67 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
           </div>
         </div>
 
-        {/* Zona de archivo - Solo mostrar en modo crear, u opcionalmente en editar */}
+        {/* Zona de archivo */}
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-slate-700 mb-1.5">
             Documento PDF
-            {editMode && <span className="text-slate-400 font-normal ml-1">(opcional)</span>}
+            {!hasValidFile && (
+              <span className="text-red-500 ml-1">*</span>
+            )}
           </label>
           
-          {/* En modo edición, mostrar que ya hay un archivo */}
-          {editMode && !file && (
-            <div className="border border-slate-200 rounded-xl p-4 flex items-center justify-between bg-slate-50 mb-3">
+          {/* Mostrar archivo original en modo edición si se mantiene */}
+          {editMode && keepOriginalFile && !file && (
+            <div className="border border-slate-200 rounded-xl p-4 flex items-center justify-between bg-white">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-blue-600" />
+                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                  <span className="text-red-600 text-xs font-bold">PDF</span>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-slate-700">Documento actual</p>
-                  <p className="text-xs text-slate-500">El archivo PDF existente se mantendrá</p>
+                  <p className="text-sm font-medium text-slate-700">
+                    {initialData?.name || "Documento actual"}.pdf
+                  </p>
+                  <p className="text-xs text-slate-500">Archivo actual del contrato</p>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={removeOriginalFile}
+                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                title="Eliminar archivo actual"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
+
+          {/* Mostrar archivo nuevo si se ha seleccionado uno */}
+          {file && (
+            <div className="border border-slate-200 rounded-xl p-4 flex items-center justify-between bg-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                  <span className="text-red-600 text-xs font-bold">PDF</span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-700">{file.name}</p>
+                  <p className="text-xs text-slate-500">
+                    {(file.size / 1024).toFixed(1)} KB
+                    {editMode && <span className="text-blue-600 ml-2">(Nuevo archivo)</span>}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={removeFile}
+                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+              >
+                <X size={18} />
+              </button>
             </div>
           )}
           
-          {!file ? (
+          {/* Mostrar dropzone solo si no hay archivo (ni original ni nuevo) */}
+          {!file && !keepOriginalFile && (
             <div
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}
@@ -298,10 +376,12 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
               className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${
                 dragActive
                   ? "border-blue-500 bg-blue-50"
-                  : "border-slate-200 hover:border-slate-300 bg-slate-50/50"
+                  : fileError
+                    ? "border-red-300 hover:border-red-400 bg-red-50/30"
+                    : "border-slate-300 hover:border-slate-400 bg-slate-50/50"
               }`}
             >
-              <Upload className="mx-auto h-8 w-8 text-slate-400 mb-2" />
+              <Upload className={`mx-auto h-8 w-8 mb-2 ${fileError ? "text-red-400" : "text-slate-400"}`} />
               <p className="text-sm text-slate-600 mb-1">
                 Arrastra tu archivo aquí o{" "}
                 <label className="text-blue-600 cursor-pointer hover:underline font-medium">
@@ -315,26 +395,11 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
                 </label>
               </p>
               <p className="text-xs text-slate-400">Solo archivos PDF</p>
-            </div>
-          ) : (
-            <div className="border border-slate-200 rounded-xl p-4 flex items-center justify-between bg-white">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                  <span className="text-red-600 text-xs font-bold">PDF</span>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-700">{file.name}</p>
-                  <p className="text-xs text-slate-500">
-                    {(file.size / 1024).toFixed(1)} KB
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={removeFile}
-                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-              >
-                <X size={18} />
-              </button>
+              {fileError && (
+                <p className="text-xs text-red-500 mt-2">
+                   Debes subir un archivo PDF para continuar
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -352,7 +417,7 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
         <button
           onClick={handleSubmit}
           disabled={loading}
-          className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:shadow-lg hover:shadow-blue-500/25 transition-all disabled:opacity-50 text-sm font-medium flex items-center gap-2"
+          className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:shadow-lg hover:shadow-blue-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium flex items-center gap-2"
         >
           {loading ? (
             <>
