@@ -13,6 +13,8 @@ import {
   ConversationWithContent,
   Document,
   DocumentCreateRequest,
+  DocumentFileUrlResponse,
+  DocumentUpdateRequest,
 } from '@/types/api.types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -54,7 +56,7 @@ export async function fetchAPI<T>(
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.message || 'Error en la petición');
+      throw new Error(errorData.detail || errorData.message || 'Error en la petición');
     }
 
     // Si es 204 No Content, retornar null
@@ -132,7 +134,7 @@ export async function deleteUser(id: number): Promise<void> {
 // CHATBOT ENDPOINTS
 // ============================================
 export async function sendMessage(data: ChatRequest): Promise<ChatResponse> {
-  return fetchAPI<ChatResponse>('/chatbot', {
+  return fetchAPI<ChatResponse>('/chatbot/', {
     method: 'POST',
     body: JSON.stringify(data),
   }, TIMEOUTS.AI);
@@ -159,14 +161,19 @@ export async function getConversationById(id: number): Promise<ConversationWithC
 export async function uploadDocument(data: DocumentCreateRequest): Promise<Document> {
   const formData = new FormData();
   formData.append('file', data.file);
-  formData.append('name', data.name);
-  formData.append('client', data.client);
-  formData.append('type', data.type);
-  formData.append('start_date', data.start_date);
-  formData.append('end_date', data.end_date);
-  formData.append('value', data.value.toString());
-  formData.append('currency', data.currency);
-  formData.append('licenses', data.licenses.toString());
+  
+  // El backend espera 'document' como un string JSON
+  const documentData = {
+    name: data.name,
+    client: data.client,
+    type: data.type,
+    start_date: data.start_date,
+    end_date: data.end_date,
+    value: data.value,
+    currency: data.currency,
+    licenses: data.licenses,
+  };
+  formData.append('document', JSON.stringify(documentData));
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.UPLOAD);
@@ -174,7 +181,7 @@ export async function uploadDocument(data: DocumentCreateRequest): Promise<Docum
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
 
   try {
-    const response = await fetch(`${API_BASE_URL}/documents`, {
+    const response = await fetch(`${API_BASE_URL}/documents/`, {
       method: 'POST',
       body: formData,
       signal: controller.signal,
@@ -187,7 +194,7 @@ export async function uploadDocument(data: DocumentCreateRequest): Promise<Docum
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.message || 'Error al subir documento');
+      throw new Error(errorData.detail || 'Error al subir documento');
     }
 
     return response.json();
@@ -210,4 +217,68 @@ export async function deleteDocument(id: number): Promise<void> {
   return fetchAPI<void>(`/documents/${id}`, {
     method: 'DELETE',
   }, TIMEOUTS.AUTH);
+}
+
+export async function getDocumentById(id: number): Promise<Document> {
+  return fetchAPI<Document>(`/documents/${id}`, {
+    method: 'GET',
+  }, TIMEOUTS.DEFAULT);
+}
+
+export async function getDocumentFileUrl(id: number): Promise<string> {
+  const response = await fetchAPI<DocumentFileUrlResponse>(`/documents/${id}/file-url`, {
+    method: 'GET',
+  }, TIMEOUTS.DEFAULT);
+  return response.url;
+}
+
+export async function updateDocument(id: number, data: DocumentUpdateRequest): Promise<Document> {
+  const formData = new FormData();
+
+  if (data.file) {
+    formData.append('file', data.file);
+  }
+
+  const documentData = {
+    ...(data.name !== undefined && { name: data.name }),
+    ...(data.client !== undefined && { client: data.client }),
+    ...(data.type !== undefined && { type: data.type }),
+    ...(data.start_date !== undefined && { start_date: data.start_date }),
+    ...(data.end_date !== undefined && { end_date: data.end_date }),
+    ...(data.value !== undefined && { value: data.value }),
+    ...(data.currency !== undefined && { currency: data.currency }),
+    ...(data.licenses !== undefined && { licenses: data.licenses }),
+  };
+  formData.append('document', JSON.stringify(documentData));
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.UPLOAD);
+
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/documents/${id}`, {
+      method: 'PATCH',
+      body: formData,
+      signal: controller.signal,
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || errorData.message || 'Error al actualizar documento');
+    }
+
+    return response.json();
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('La actualización excedió el tiempo límite');
+    }
+    throw error;
+  }
 }

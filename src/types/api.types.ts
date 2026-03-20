@@ -88,6 +88,8 @@ export interface Document {
   currency: string;
   licenses: number;
   state: DocumentState;
+  file_path?: string | null;
+  file_name?: string | null;
 }
 
 export interface DocumentCreateRequest {
@@ -100,6 +102,22 @@ export interface DocumentCreateRequest {
   value: number;
   currency: string;
   licenses: number;
+}
+
+export interface DocumentUpdateRequest {
+  name?: string;
+  client?: string;
+  type?: DocumentType;
+  start_date?: string;
+  end_date?: string;
+  value?: number;
+  currency?: string;
+  licenses?: number;
+  file?: File;
+}
+
+export interface DocumentFileUrlResponse {
+  url: string;
 }
 
 // ============================================
