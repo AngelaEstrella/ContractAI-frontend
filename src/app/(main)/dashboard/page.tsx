@@ -15,7 +15,10 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { getDocuments } from "@/lib/api";
+import { supabase } from "@/lib/supabaseClient";
+import { mapSupabaseUserToAuthUser, toFirstName } from "@/lib/authUser";
 import { Document, DocumentState } from "@/types/api.types";
+import { useAuthStore } from "@/store";
 
 type RecentDocument = {
   id: number;
@@ -94,6 +97,7 @@ const formatChange = (current: number, previous: number): { label: string; posit
 };
 
 export default function DashboardPage() {
+  const { user, setUser } = useAuthStore();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -118,6 +122,26 @@ export default function DashboardPage() {
 
     loadDocuments();
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      return;
+    }
+
+    const syncUser = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (session?.user) {
+        setUser(mapSupabaseUserToAuthUser(session.user));
+      }
+    };
+
+    syncUser();
+  }, [setUser, user]);
+
+  const firstName = toFirstName(user?.name || "Alex");
 
   const metrics = useMemo(() => {
     const now = new Date();
@@ -217,7 +241,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <section className="rounded-2xl bg-white px-6 py-6 shadow-md md:px-8">
-        <h1 className="text-3xl font-semibold text-slate-800">Bienvenido, Alex</h1>
+          <h1 className="text-3xl font-semibold text-slate-800">Bienvenido, {firstName}</h1>
         <p className="mt-2 text-sm text-[var(--gray-medium)] md:text-base">
           Este es el resumen de tu pipeline de notarización para hoy.
         </p>
