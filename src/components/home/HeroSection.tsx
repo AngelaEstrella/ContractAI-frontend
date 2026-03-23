@@ -24,7 +24,7 @@ export default function HeroSection() {
         </p>
         
         <Link
-          href="/dashboard"
+          href="/login"
           className="inline-block bg-[var(--primary)] text-white px-10 py-5 rounded-lg text-xl font-medium hover:bg-[var(--primary-dark)] transition-colors"
         >
           Iniciar sesión

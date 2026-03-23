@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, User, LogOut } from "lucide-react";
 import { useAuthStore } from "@/store";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -14,7 +15,12 @@ export default function Header() {
   const userRole = user?.role || "Notario";
   const userInitials = userName.split(" ").map((n) => n[0]).join("");
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("Error cerrando sesión en Supabase:", error.message);
+    }
+
     logout();
     router.push("/");
   };
