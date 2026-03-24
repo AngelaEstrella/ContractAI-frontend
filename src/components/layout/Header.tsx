@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, User, LogOut } from "lucide-react";
+import { getCurrentUser, logout as clearApiSession } from "@/lib/api";
 import { useAuthStore } from "@/store";
 import { supabase } from "@/lib/supabaseClient";
-import { mapSupabaseUserToAuthUser, toNameAndLastName } from "@/lib/authUser";
+import { mapBackendUserToAuthUser, mapSupabaseUserToAuthUser, toNameAndLastName } from "@/lib/authUser";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -13,13 +14,17 @@ export default function Header() {
   const { user, setUser, logout } = useAuthStore();
 
   const userName = toNameAndLastName(user?.name || "Alex Carter");
-  const userRole = user?.role || "Notario";
+  const userRole = user?.role || "worker";
   const userInitials = userName.split(" ").map((n) => n[0]).join("");
 
   useEffect(() => {
     let mounted = true;
 
     const syncUser = async () => {
+      if (user) {
+        return;
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -28,7 +33,15 @@ export default function Header() {
         return;
       }
 
-      setUser(mapSupabaseUserToAuthUser(session.user));
+      try {
+        const backendUser = await getCurrentUser();
+        if (!mounted) {
+          return;
+        }
+        setUser(mapBackendUserToAuthUser(backendUser));
+      } catch {
+        setUser(mapSupabaseUserToAuthUser(session.user));
+      }
     };
 
     syncUser();
@@ -41,10 +54,12 @@ export default function Header() {
       }
 
       if (session?.user) {
-        setUser(mapSupabaseUserToAuthUser(session.user));
+        localStorage.setItem("access_token", session.access_token);
+        syncUser();
         return;
       }
 
+      clearApiSession();
       logout();
     });
 
@@ -52,7 +67,7 @@ export default function Header() {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [logout, setUser]);
+  }, [logout, setUser, user]);
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -60,6 +75,7 @@ export default function Header() {
       console.error("Error cerrando sesión en Supabase:", error.message);
     }
 
+    clearApiSession();
     logout();
     router.push("/");
   };
