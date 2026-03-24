@@ -1,20 +1,65 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, User, LogOut } from "lucide-react";
 import { useAuthStore } from "@/store";
+import { supabase } from "@/lib/supabaseClient";
+import { mapSupabaseUserToAuthUser, toNameAndLastName } from "@/lib/authUser";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user, setUser, logout } = useAuthStore();
 
-  const userName = user?.name || "Alex Carter";
+  const userName = toNameAndLastName(user?.name || "Alex Carter");
   const userRole = user?.role || "Notario";
   const userInitials = userName.split(" ").map((n) => n[0]).join("");
 
-  const handleLogout = () => {
+  useEffect(() => {
+    let mounted = true;
+
+    const syncUser = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!mounted || !session?.user) {
+        return;
+      }
+
+      setUser(mapSupabaseUserToAuthUser(session.user));
+    };
+
+    syncUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) {
+        return;
+      }
+
+      if (session?.user) {
+        setUser(mapSupabaseUserToAuthUser(session.user));
+        return;
+      }
+
+      logout();
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [logout, setUser]);
+
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("Error cerrando sesión en Supabase:", error.message);
+    }
+
     logout();
     router.push("/");
   };
