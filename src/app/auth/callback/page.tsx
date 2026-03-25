@@ -2,11 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getCurrentUser } from "@/lib/api";
+import { mapBackendUserToAuthUser } from "@/lib/authUser";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuthStore } from "@/store";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const { setUser, logout } = useAuthStore();
 
   useEffect(() => {
     let mounted = true;
@@ -39,12 +43,18 @@ export default function AuthCallbackPage() {
         }
 
         if (session) {
+          localStorage.setItem("access_token", session.access_token);
+          const backendUser = await getCurrentUser();
+          setUser(mapBackendUserToAuthUser(backendUser));
           router.replace("/dashboard");
           return;
         }
 
         router.replace("/login");
       } catch (err) {
+        await supabase.auth.signOut();
+        localStorage.removeItem("access_token");
+        logout();
         if (!mounted) {
           return;
         }
@@ -57,7 +67,7 @@ export default function AuthCallbackPage() {
     return () => {
       mounted = false;
     };
-  }, [router]);
+  }, [logout, router, setUser]);
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">

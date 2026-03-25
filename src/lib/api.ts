@@ -5,8 +5,6 @@ import {
   LoginRequest,
   LoginResponse,
   User,
-  UserCreateRequest,
-  UserUpdateRequest,
   ChatRequest,
   ChatResponse,
   Conversation,
@@ -16,6 +14,7 @@ import {
   DocumentFileUrlResponse,
   DocumentUpdateRequest,
 } from '@/types/api.types';
+import { supabase } from '@/lib/supabaseClient';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -28,9 +27,29 @@ export const TIMEOUTS = {
 };
 
 const DOCUMENTS_CACHE_TTL_MS = 15_000;
+const CURRENT_USER_CACHE_TTL_MS = 15_000;
 
 let documentsCache: { data: Document[]; timestamp: number } | null = null;
 let documentsInFlight: Promise<Document[]> | null = null;
+let currentUserCache: { data: User; timestamp: number } | null = null;
+let currentUserInFlight: Promise<User> | null = null;
+
+async function getAccessToken(): Promise<string | null> {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (session?.access_token) {
+    localStorage.setItem('access_token', session.access_token);
+    return session.access_token;
+  }
+
+  return localStorage.getItem('access_token');
+}
 
 // ============================================
 // FETCH BASE FUNCTION
@@ -44,7 +63,7 @@ export async function fetchAPI<T>(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-  const token = includeAuth && typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const token = includeAuth ? await getAccessToken() : null;
   const headers = new Headers(options.headers ?? {});
   const hasBody = options.body !== undefined && options.body !== null;
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
@@ -105,41 +124,33 @@ export async function login(data: LoginRequest): Promise<LoginResponse> {
 
 export function logout(): void {
   localStorage.removeItem('access_token');
+  currentUserCache = null;
+  currentUserInFlight = null;
+  documentsCache = null;
+  documentsInFlight = null;
 }
 
-// ============================================
-// USER ENDPOINTS
-// ============================================
-export async function createUser(data: UserCreateRequest): Promise<User> {
-  return fetchAPI<User>('/user', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  }, TIMEOUTS.DEFAULT);
-}
+export async function getCurrentUser(): Promise<User> {
+  if (currentUserCache && Date.now() - currentUserCache.timestamp < CURRENT_USER_CACHE_TTL_MS) {
+    return currentUserCache.data;
+  }
 
-export async function getUsers(): Promise<User[]> {
-  return fetchAPI<User[]>('/user', {
+  if (currentUserInFlight) {
+    return currentUserInFlight;
+  }
+
+  currentUserInFlight = fetchAPI<User>('/user/me', {
     method: 'GET',
-  }, TIMEOUTS.DEFAULT);
-}
+  }, TIMEOUTS.DEFAULT)
+    .then((user) => {
+      currentUserCache = { data: user, timestamp: Date.now() };
+      return user;
+    })
+    .finally(() => {
+      currentUserInFlight = null;
+    });
 
-export async function getUserById(id: number): Promise<User> {
-  return fetchAPI<User>(`/user/${id}`, {
-    method: 'GET',
-  }, TIMEOUTS.DEFAULT);
-}
-
-export async function updateUser(id: number, data: UserUpdateRequest): Promise<User> {
-  return fetchAPI<User>(`/user/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(data),
-  }, TIMEOUTS.DEFAULT);
-}
-
-export async function deleteUser(id: number): Promise<void> {
-  return fetchAPI<void>(`/user/${id}`, {
-    method: 'DELETE',
-  }, TIMEOUTS.AUTH);
+  return currentUserInFlight;
 }
 
 // ============================================
@@ -190,7 +201,7 @@ export async function uploadDocument(data: DocumentCreateRequest): Promise<Docum
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.UPLOAD);
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const token = await getAccessToken();
 
   try {
     const response = await fetch(`${API_BASE_URL}/documents/`, {
@@ -233,7 +244,7 @@ export async function getDocuments(): Promise<Document[]> {
 
   documentsInFlight = fetchAPI<Document[]>('/documents/', {
     method: 'GET',
-  }, TIMEOUTS.DEFAULT, false)
+  }, TIMEOUTS.DEFAULT)
     .then((documents) => {
       documentsCache = { data: documents, timestamp: Date.now() };
       return documents;
@@ -290,7 +301,7 @@ export async function updateDocument(id: number, data: DocumentUpdateRequest): P
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.UPLOAD);
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const token = await getAccessToken();
 
   try {
     const response = await fetch(`${API_BASE_URL}/documents/${id}`, {

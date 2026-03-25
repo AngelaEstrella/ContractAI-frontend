@@ -1,4 +1,5 @@
 import type { User as SupabaseUser } from "@supabase/supabase-js";
+import type { User as BackendUser } from "@/types/api.types";
 
 type AuthMetadata = {
   full_name?: string;
@@ -56,7 +57,15 @@ export const mapSupabaseUserToAuthUser = (user: SupabaseUser): AuthDisplayUser =
     id: user.id,
     name,
     email,
-    role: "Notario",
+    role: "worker",
     avatarUrl: metadata.avatar_url || null,
   };
 };
+
+export const mapBackendUserToAuthUser = (user: BackendUser): AuthDisplayUser => ({
+  id: user.id,
+  name: user.full_name ? toNameAndLastName(user.full_name) : fallbackNameFromEmail(user.email),
+  email: user.email,
+  role: user.role,
+  avatarUrl: user.avatar_url || null,
+});

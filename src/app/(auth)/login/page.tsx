@@ -203,9 +203,7 @@ export default function LoginPage() {
           {/* Branding & Messaging */}
           <div className="mb-14 text-center">
             {/* Gradient Title */}
-            <h1
-              className="mb-4 text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-800 via-blue-600 to-blue-400 bg-clip-text text-transparent"
-            >
+            <h1 className="mb-4 bg-gradient-to-r from-blue-800 via-blue-600 to-blue-400 bg-clip-text text-4xl font-bold tracking-tight text-transparent">
               ContractAI
             </h1>
             <h2 className="mb-5 text-xl font-medium text-slate-700">
@@ -306,7 +304,7 @@ export default function LoginPage() {
                       alt={`Avatar de ${authUser.name}`}
                       width={52}
                       height={52}
-                      className="h-13 w-13 rounded-full object-cover ring-2 ring-white shadow-sm"
+                      className="h-13 w-13 rounded-full object-cover shadow-sm ring-2 ring-white"
                     />
                   ) : (
                     <div className="flex h-13 w-13 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-lg font-bold text-white shadow-sm">

@@ -18,24 +18,35 @@ export interface LoginResponse {
 // ============================================
 // USER TYPES
 // ============================================
-export type UserRole = 'admin' | 'user';
+export type UserRole = 'admin' | 'worker';
 
 export interface User {
   id: number;
+  organization_id: number;
+  supabase_user_id?: string | null;
   email: string;
   role: UserRole;
-  name?: string;
+  full_name?: string | null;
+  avatar_url?: string | null;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface UserCreateRequest {
   email: string;
-  password: string;
+  full_name?: string | null;
+  avatar_url?: string | null;
   role: UserRole;
+  is_active?: boolean;
 }
 
 export interface UserUpdateRequest {
   email?: string;
-  password?: string;
+  full_name?: string | null;
+  avatar_url?: string | null;
+  role?: UserRole;
+  is_active?: boolean;
 }
 
 // ============================================
