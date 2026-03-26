@@ -85,8 +85,33 @@ export interface ConversationWithContent extends Conversation {
 // ============================================
 // DOCUMENT TYPES
 // ============================================
-export type DocumentType = 'SERVICIOS' | 'LICENCIAS' | 'SOPORTE';
-export type DocumentState = 'ACTIVO' | 'POR_VENCER' | 'EXPIRADO';
+export type DocumentType = 'SERVICES' | 'LICENSES' | 'SUPPORT';
+export type DocumentState = 'ACTIVE' | 'PENDING' | 'EXPIRED';
+export type CurrencyType = 'PEN' | 'USD' | 'EUR';
+
+export interface DocumentFormData {
+  value?: number;
+  currency?: CurrencyType;
+  [key: string]: unknown;
+}
+
+export interface DocumentServiceItemPayload {
+  service_id: number;
+  description?: string | null;
+  value: number;
+  currency: CurrencyType;
+  start_date: string;
+  end_date: string;
+}
+
+export interface DocumentServiceItem extends DocumentServiceItemPayload {
+  id: number;
+}
+
+export interface ServiceCatalogItem {
+  id: number;
+  name: string;
+}
 
 export interface Document {
   id: number;
@@ -95,12 +120,13 @@ export interface Document {
   type: DocumentType;
   start_date: string;
   end_date: string;
-  value: number;
-  currency: string;
-  licenses: number;
+  form_data: DocumentFormData;
   state: DocumentState;
+  service_items: DocumentServiceItem[];
   file_path?: string | null;
   file_name?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface DocumentCreateRequest {
@@ -110,9 +136,9 @@ export interface DocumentCreateRequest {
   type: DocumentType;
   start_date: string;
   end_date: string;
-  value: number;
-  currency: string;
-  licenses: number;
+  form_data: DocumentFormData;
+  state?: DocumentState;
+  service_items?: DocumentServiceItemPayload[];
 }
 
 export interface DocumentUpdateRequest {
@@ -121,9 +147,9 @@ export interface DocumentUpdateRequest {
   type?: DocumentType;
   start_date?: string;
   end_date?: string;
-  value?: number;
-  currency?: string;
-  licenses?: number;
+  form_data?: DocumentFormData;
+  state?: DocumentState;
+  service_items?: DocumentServiceItemPayload[];
   file?: File;
 }
 

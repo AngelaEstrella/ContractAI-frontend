@@ -12,7 +12,10 @@ import {
   Document,
   DocumentCreateRequest,
   DocumentFileUrlResponse,
+  DocumentFormData,
+  DocumentServiceItem,
   DocumentUpdateRequest,
+  ServiceCatalogItem,
 } from '@/types/api.types';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -31,8 +34,18 @@ const CURRENT_USER_CACHE_TTL_MS = 15_000;
 
 let documentsCache: { data: Document[]; timestamp: number } | null = null;
 let documentsInFlight: Promise<Document[]> | null = null;
+let servicesCache: { data: ServiceCatalogItem[]; timestamp: number } | null = null;
+let servicesInFlight: Promise<ServiceCatalogItem[]> | null = null;
 let currentUserCache: { data: User; timestamp: number } | null = null;
 let currentUserInFlight: Promise<User> | null = null;
+
+const normalizeDocument = (document: Document): Document => ({
+  ...document,
+  form_data: (document.form_data ?? {}) as DocumentFormData,
+  service_items: Array.isArray(document.service_items) ? document.service_items : [] as DocumentServiceItem[],
+  file_path: document.file_path ?? null,
+  file_name: document.file_name ?? null,
+});
 
 async function getAccessToken(): Promise<string | null> {
   if (typeof window === 'undefined') {
@@ -128,6 +141,8 @@ export function logout(): void {
   currentUserInFlight = null;
   documentsCache = null;
   documentsInFlight = null;
+  servicesCache = null;
+  servicesInFlight = null;
 }
 
 export async function getCurrentUser(): Promise<User> {
@@ -192,9 +207,9 @@ export async function uploadDocument(data: DocumentCreateRequest): Promise<Docum
     type: data.type,
     start_date: data.start_date,
     end_date: data.end_date,
-    value: data.value,
-    currency: data.currency,
-    licenses: data.licenses,
+    form_data: data.form_data,
+    state: data.state,
+    service_items: data.service_items ?? [],
   };
   formData.append('document', JSON.stringify(documentData));
 
@@ -220,7 +235,7 @@ export async function uploadDocument(data: DocumentCreateRequest): Promise<Docum
       throw new Error(errorData.detail || 'Error al subir documento');
     }
 
-    const createdDocument = await response.json();
+    const createdDocument = normalizeDocument(await response.json());
     documentsCache = null;
     documentsInFlight = null;
     return createdDocument;
@@ -246,14 +261,38 @@ export async function getDocuments(): Promise<Document[]> {
     method: 'GET',
   }, TIMEOUTS.DEFAULT)
     .then((documents) => {
-      documentsCache = { data: documents, timestamp: Date.now() };
-      return documents;
+      const normalizedDocuments = documents.map(normalizeDocument);
+      documentsCache = { data: normalizedDocuments, timestamp: Date.now() };
+      return normalizedDocuments;
     })
     .finally(() => {
       documentsInFlight = null;
     });
 
   return documentsInFlight;
+}
+
+export async function getServices(): Promise<ServiceCatalogItem[]> {
+  if (servicesCache && Date.now() - servicesCache.timestamp < DOCUMENTS_CACHE_TTL_MS) {
+    return servicesCache.data;
+  }
+
+  if (servicesInFlight) {
+    return servicesInFlight;
+  }
+
+  servicesInFlight = fetchAPI<ServiceCatalogItem[]>('/documents/services', {
+    method: 'GET',
+  }, TIMEOUTS.DEFAULT)
+    .then((services) => {
+      servicesCache = { data: services, timestamp: Date.now() };
+      return services;
+    })
+    .finally(() => {
+      servicesInFlight = null;
+    });
+
+  return servicesInFlight;
 }
 
 export async function deleteDocument(id: number): Promise<void> {
@@ -267,9 +306,10 @@ export async function deleteDocument(id: number): Promise<void> {
 }
 
 export async function getDocumentById(id: number): Promise<Document> {
-  return fetchAPI<Document>(`/documents/${id}`, {
+  const document = await fetchAPI<Document>(`/documents/${id}`, {
     method: 'GET',
   }, TIMEOUTS.DEFAULT);
+  return normalizeDocument(document);
 }
 
 export async function getDocumentFileUrl(id: number): Promise<string> {
@@ -292,9 +332,9 @@ export async function updateDocument(id: number, data: DocumentUpdateRequest): P
     ...(data.type !== undefined && { type: data.type }),
     ...(data.start_date !== undefined && { start_date: data.start_date }),
     ...(data.end_date !== undefined && { end_date: data.end_date }),
-    ...(data.value !== undefined && { value: data.value }),
-    ...(data.currency !== undefined && { currency: data.currency }),
-    ...(data.licenses !== undefined && { licenses: data.licenses }),
+    ...(data.form_data !== undefined && { form_data: data.form_data }),
+    ...(data.state !== undefined && { state: data.state }),
+    ...(data.service_items !== undefined && { service_items: data.service_items }),
   };
   formData.append('document', JSON.stringify(documentData));
 
@@ -320,9 +360,11 @@ export async function updateDocument(id: number, data: DocumentUpdateRequest): P
       throw new Error(errorData.detail || errorData.message || 'Error al actualizar documento');
     }
 
-    const updatedDocument = await response.json();
+    const updatedDocument = normalizeDocument(await response.json());
     documentsCache = null;
     documentsInFlight = null;
+    servicesCache = null;
+    servicesInFlight = null;
     return updatedDocument;
   } catch (error) {
     clearTimeout(timeoutId);

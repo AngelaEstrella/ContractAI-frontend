@@ -15,6 +15,12 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { getDocuments } from "@/lib/api";
+import {
+  getDashboardDocumentStateClasses,
+  getDocumentFileLabel,
+  getDocumentStateLabel,
+  getDocumentTypeLabel,
+} from "@/lib/document.utils";
 import { supabase } from "@/lib/supabaseClient";
 import { mapSupabaseUserToAuthUser, toFirstName } from "@/lib/authUser";
 import { Document, DocumentState } from "@/types/api.types";
@@ -26,25 +32,6 @@ type RecentDocument = {
   subtitle: string;
   status: DocumentState;
   modified: string;
-};
-
-const statusStyles: Record<DocumentState, string> = {
-  ACTIVO: "bg-emerald-100 text-emerald-700",
-  POR_VENCER: "bg-amber-100 text-amber-700",
-  EXPIRADO: "bg-red-100 text-red-600",
-};
-
-const statusLabel = (status: DocumentState): string => {
-  switch (status) {
-    case "ACTIVO":
-      return "Activo";
-    case "POR_VENCER":
-      return "Por vencer";
-    case "EXPIRADO":
-      return "Expirado";
-    default:
-      return status;
-  }
 };
 
 const monthKey = (date: Date): string => `${date.getFullYear()}-${date.getMonth() + 1}`;
@@ -149,42 +136,42 @@ export default function DashboardPage() {
     const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const previousMonth = monthKey(previousMonthDate);
 
-    const docsByStartMonth = documents.reduce<Record<string, number>>((acc, doc) => {
-      const key = monthKey(new Date(doc.start_date));
+    const docsByCreationMonth = documents.reduce<Record<string, number>>((acc, doc) => {
+      const key = monthKey(new Date(doc.created_at));
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
 
-    const expiringByEndMonth = documents.reduce<Record<string, number>>((acc, doc) => {
-      if (doc.state !== "POR_VENCER") {
+    const pendingByUpdatedMonth = documents.reduce<Record<string, number>>((acc, doc) => {
+      if (doc.state !== "PENDING") {
         return acc;
       }
-      const key = monthKey(new Date(doc.end_date));
+      const key = monthKey(new Date(doc.updated_at));
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
 
-    const expiredByEndMonth = documents.reduce<Record<string, number>>((acc, doc) => {
-      if (doc.state !== "EXPIRADO") {
+    const expiredByUpdatedMonth = documents.reduce<Record<string, number>>((acc, doc) => {
+      if (doc.state !== "EXPIRED") {
         return acc;
       }
-      const key = monthKey(new Date(doc.end_date));
+      const key = monthKey(new Date(doc.updated_at));
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
 
     const totalContracts = documents.length;
-    const expiringContracts = documents.filter((doc) => doc.state === "POR_VENCER").length;
-    const expiredContracts = documents.filter((doc) => doc.state === "EXPIRADO").length;
+    const pendingContracts = documents.filter((doc) => doc.state === "PENDING").length;
+    const expiredContracts = documents.filter((doc) => doc.state === "EXPIRED").length;
 
-    const totalChange = formatChange(docsByStartMonth[currentMonth] || 0, docsByStartMonth[previousMonth] || 0);
-    const expiringChange = formatChange(
-      expiringByEndMonth[currentMonth] || 0,
-      expiringByEndMonth[previousMonth] || 0
+    const totalChange = formatChange(docsByCreationMonth[currentMonth] || 0, docsByCreationMonth[previousMonth] || 0);
+    const pendingChange = formatChange(
+      pendingByUpdatedMonth[currentMonth] || 0,
+      pendingByUpdatedMonth[previousMonth] || 0,
     );
     const expiredChange = formatChange(
-      expiredByEndMonth[currentMonth] || 0,
-      expiredByEndMonth[previousMonth] || 0
+      expiredByUpdatedMonth[currentMonth] || 0,
+      expiredByUpdatedMonth[previousMonth] || 0,
     );
 
     return [
@@ -197,10 +184,10 @@ export default function DashboardPage() {
         iconStyle: "bg-blue-50 text-blue-600",
       },
       {
-        title: "POR VENCER",
-        value: expiringContracts.toLocaleString("es-ES"),
-        change: expiringChange.label,
-        positive: !expiringChange.positive,
+        title: "PENDIENTES",
+        value: pendingContracts.toLocaleString("es-ES"),
+        change: pendingChange.label,
+        positive: !pendingChange.positive,
         icon: AlertTriangle,
         iconStyle: "bg-amber-50 text-amber-600",
       },
@@ -215,16 +202,15 @@ export default function DashboardPage() {
     ];
   }, [documents]);
 
-  // Documentos ordenados por ID descendente
   const sortedDocuments = useMemo<RecentDocument[]>(() => {
     return [...documents]
       .sort((a, b) => b.id - a.id)
       .map((doc) => ({
         id: doc.id,
         name: doc.name,
-        subtitle: `Cliente: ${doc.client}`,
+        subtitle: `${doc.client} · ${getDocumentTypeLabel(doc.type)} · ${getDocumentFileLabel(doc)}`,
         status: doc.state,
-        modified: formatRelative(doc.end_date),
+        modified: formatRelative(doc.updated_at),
       }));
   }, [documents]);
 
@@ -240,10 +226,10 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl bg-white px-6 py-6 shadow-md md:px-8">
+        <section className="rounded-2xl bg-white px-6 py-6 shadow-md md:px-8">
           <h1 className="text-3xl font-semibold text-slate-800">Bienvenido, {firstName}</h1>
         <p className="mt-2 text-sm text-[var(--gray-medium)] md:text-base">
-          Este es el resumen de tu pipeline de notarización para hoy.
+          Este es el resumen de tus contratos y documentos para hoy.
         </p>
       </section>
 
@@ -293,9 +279,9 @@ export default function DashboardPage() {
       <section className="grid gap-6 xl:grid-cols-12">
         <article className="rounded-2xl bg-white shadow-md xl:col-span-8 flex flex-col">
           <div className="border-b border-slate-100 px-6 py-5">
-            <h2 className="text-lg font-semibold text-slate-800">Documentos recientes</h2>
+            <h2 className="text-lg font-semibold text-slate-800">Contratos recientes</h2>
             <p className="mt-1 text-sm text-[var(--gray-medium)]">
-              Últimos movimientos en tus documentos notariales.
+              Últimas actualizaciones registradas en tus contratos.
             </p>
           </div>
 
@@ -346,20 +332,23 @@ export default function DashboardPage() {
                       </td>
                       <td className="px-6 py-4 text-center align-middle">
                         <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
-                            statusStyles[doc.status]
-                          }`}
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getDashboardDocumentStateClasses(
+                            doc.status,
+                          )}`}
                         >
-                          {statusLabel(doc.status)}
+                          {getDocumentStateLabel(doc.status)}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center align-middle text-sm text-[var(--gray-medium)]">
                         <span className="whitespace-nowrap">{doc.modified}</span>
                       </td>
                       <td className="px-6 py-4 text-right align-middle">
-                        <button className="rounded-lg p-2 text-slate-500 transition-colors duration-200 hover:bg-slate-100 hover:text-slate-700">
+                        <Link
+                          href="/contracts"
+                          className="inline-flex rounded-lg p-2 text-slate-500 transition-colors duration-200 hover:bg-slate-100 hover:text-slate-700"
+                        >
                           <Ellipsis className="h-5 w-5" />
-                        </button>
+                        </Link>
                       </td>
                     </tr>
                   ))}

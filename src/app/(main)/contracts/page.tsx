@@ -1,11 +1,42 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getDocuments, deleteDocument, getDocumentFileUrl } from "@/lib/api";
-import { Document } from "@/types/api.types";
+import { deleteDocument, getDocumentFileUrl, getDocuments } from "@/lib/api";
+import {
+  DOCUMENT_STATE_OPTIONS,
+  getDocumentFileLabel,
+  getDocumentStateClasses,
+  getDocumentStateLabel,
+  getDocumentSummary,
+  getDocumentTypeLabel,
+} from "@/lib/document.utils";
+import { Document, DocumentState } from "@/types/api.types";
 import AddContractForm from "./AddContractForm";
-import { Eye, Pencil, Trash2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X, AlertTriangle } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Eye,
+  Pencil,
+  Trash2,
+  X,
+} from "lucide-react";
+
+const FILTER_OPTIONS: Array<{ value: "all" | DocumentState; label: string }> = [
+  { value: "all", label: "Todos" },
+  ...DOCUMENT_STATE_OPTIONS,
+];
+
+const getServiceCountLabel = (count: number): string => {
+  if (count === 0) {
+    return "Sin servicios";
+  }
+
+  return `${count} servicio${count === 1 ? "" : "s"}`;
+};
 
 export default function ContractsPage() {
   const router = useRouter();
@@ -13,27 +44,23 @@ export default function ContractsPage() {
   const [contracts, setContracts] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState<"all" | DocumentState>("all");
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [openedFromQuery, setOpenedFromQuery] = useState(false);
 
-  // Paginación - cambiado a 8 por defecto
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(9);
 
-  // Modal de confirmación para eliminar
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [contractToDelete, setContractToDelete] = useState<Document | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Modal de edición
   const [showEditForm, setShowEditForm] = useState(false);
   const [contractToEdit, setContractToEdit] = useState<Document | null>(null);
 
-  // Cargar contratos al montar el componente
   useEffect(() => {
-    loadContracts();
+    void loadContracts();
   }, []);
 
   useEffect(() => {
@@ -48,7 +75,6 @@ export default function ContractsPage() {
     }
   }, []);
 
-  // Resetear a página 1 cuando cambia el filtro o búsqueda
   useEffect(() => {
     setCurrentPage(1);
   }, [filter, search]);
@@ -71,9 +97,7 @@ export default function ContractsPage() {
   };
 
   const updateContract = (updatedContract: Document) => {
-    setContracts((prev) =>
-      prev.map((c) => (c.id === updatedContract.id ? updatedContract : c))
-    );
+    setContracts((prev) => prev.map((contract) => (contract.id === updatedContract.id ? updatedContract : contract)));
   };
 
   const closeForm = () => {
@@ -84,55 +108,31 @@ export default function ContractsPage() {
     }
   };
 
-  // Filtrado
-  const filtered = contracts.filter((c) => {
-  const matchFilter = filter === "all" || c.state === filter;
-  const matchSearch =
-    c.id.toString().includes(search) ||
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.client.toLowerCase().includes(search.toLowerCase());
+  const filteredContracts = useMemo(() => {
+    const searchTerm = search.trim().toLowerCase();
 
-  return matchFilter && matchSearch;
-});
+    return contracts.filter((contract) => {
+      const matchesFilter = filter === "all" || contract.state === filter;
+      const matchesSearch =
+        searchTerm.length === 0 ||
+        contract.id.toString().includes(searchTerm) ||
+        contract.name.toLowerCase().includes(searchTerm) ||
+        contract.client.toLowerCase().includes(searchTerm) ||
+        (contract.file_name ?? "").toLowerCase().includes(searchTerm);
 
-  // Cálculos de paginación
-  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+      return matchesFilter && matchesSearch;
+    });
+  }, [contracts, filter, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredContracts.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedData = filtered.slice(startIndex, endIndex);
+  const paginatedContracts = filteredContracts.slice(startIndex, endIndex);
 
-  // Navegación de páginas
   const goToPage = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
 
-  const statusStyle = (status: string) => {
-    switch (status) {
-      case "ACTIVO":
-        return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20";
-      case "POR_VENCER":
-        return "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20";
-      case "EXPIRADO":
-        return "bg-red-50 text-red-700 ring-1 ring-red-600/20";
-      default:
-        return "bg-slate-50 text-slate-700 ring-1 ring-slate-600/20";
-    }
-  };
-
-  const statusLabel = (status: string) => {
-    switch (status) {
-      case "ACTIVO":
-        return "Activo";
-      case "POR_VENCER":
-        return "Por vencer";
-      case "EXPIRADO":
-        return "Expirado";
-      default:
-        return status;
-    }
-  };
-
-  // Handlers de acciones
   const handleView = async (contract: Document) => {
     try {
       const signedUrl = await getDocumentFileUrl(contract.id);
@@ -154,12 +154,14 @@ export default function ContractsPage() {
   };
 
   const confirmDelete = async () => {
-    if (!contractToDelete) return;
+    if (!contractToDelete) {
+      return;
+    }
 
     try {
       setDeleting(true);
       await deleteDocument(contractToDelete.id);
-      setContracts((prev) => prev.filter((c) => c.id !== contractToDelete.id));
+      setContracts((prev) => prev.filter((contract) => contract.id !== contractToDelete.id));
       setShowDeleteModal(false);
       setContractToDelete(null);
     } catch (err) {
@@ -172,20 +174,20 @@ export default function ContractsPage() {
 
   if (loading) {
     return (
-      <div className="h-full flex flex-col items-center justify-center">
-        <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-        <p className="text-gray-500 text-lg">Cargando contratos...</p>
+      <div className="flex h-full flex-col items-center justify-center">
+        <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
+        <p className="text-lg text-gray-500">Cargando contratos...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="h-full flex flex-col items-center justify-center">
-        <p className="text-red-500 mb-4">{error}</p>
+      <div className="flex h-full flex-col items-center justify-center">
+        <p className="mb-4 text-red-500">{error}</p>
         <button
           onClick={loadContracts}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
         >
           Reintentar
         </button>
@@ -194,48 +196,41 @@ export default function ContractsPage() {
   }
 
   return (
-    <div className="h-full flex flex-col">
-      {/* HEADER */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between flex-shrink-0 pb-4">
+    <div className="flex h-full flex-col">
+      <div className="flex flex-shrink-0 flex-col gap-4 pb-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-800">Gestión de Contratos</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            {filtered.length} contrato{filtered.length !== 1 ? "s" : ""} encontrado{filtered.length !== 1 ? "s" : ""}
+          <p className="mt-1 text-sm text-slate-500">
+            {filteredContracts.length} contrato{filteredContracts.length !== 1 ? "s" : ""} encontrado
+            {filteredContracts.length !== 1 ? "s" : ""}
           </p>
         </div>
 
         <button
           onClick={() => setShowForm(true)}
-          className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-medium rounded-xl hover:shadow-lg hover:shadow-blue-500/25 hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2"
+          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/25"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           Nuevo Contrato
         </button>
       </div>
 
-      {/* MODAL NUEVO CONTRATO */}
       {showForm && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
           onClick={closeForm}
         >
           <div
-            className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto"
+            className="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={closeForm}
-              className="absolute top-4 right-4 p-1 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
+              className="absolute right-4 top-4 rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-black"
             >
-              <X className="w-5 h-5" />
+              <X className="h-5 w-5" />
             </button>
 
             <AddContractForm onAdd={addContract} onClose={closeForm} />
@@ -243,21 +238,20 @@ export default function ContractsPage() {
         </div>
       )}
 
-      {/* MODAL EDITAR CONTRATO */}
       {showEditForm && contractToEdit && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
           onClick={() => setShowEditForm(false)}
         >
           <div
-            className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto"
+            className="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => setShowEditForm(false)}
-              className="absolute top-4 right-4 p-1 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
+              className="absolute right-4 top-4 rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-black"
             >
-              <X className="w-5 h-5" />
+              <X className="h-5 w-5" />
             </button>
 
             <AddContractForm
@@ -273,44 +267,37 @@ export default function ContractsPage() {
         </div>
       )}
 
-      {/* MODAL CONFIRMAR ELIMINACIÓN */}
       {showDeleteModal && contractToDelete && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
           onClick={() => !deleting && setShowDeleteModal(false)}
         >
-          <div
-            className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 relative"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex flex-col items-center text-center">
-              <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                <AlertTriangle className="w-7 h-7 text-red-600" />
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-100">
+                <AlertTriangle className="h-7 w-7 text-red-600" />
               </div>
-              <h3 className="text-lg font-semibold text-slate-800 mb-2">
-                ¿Eliminar contrato?
-              </h3>
-              <p className="text-sm text-slate-500 mb-6">
-                Estás a punto de eliminar el contrato{" "}
-                <span className="font-medium text-slate-700">{contractToDelete.name}</span>.
+              <h3 className="mb-2 text-lg font-semibold text-slate-800">¿Eliminar contrato?</h3>
+              <p className="mb-6 text-sm text-slate-500">
+                Estás a punto de eliminar el contrato <span className="font-medium text-slate-700">{contractToDelete.name}</span>.
                 Esta acción no se puede deshacer.
               </p>
-              <div className="flex gap-3 w-full">
+              <div className="flex w-full gap-3">
                 <button
                   onClick={() => setShowDeleteModal(false)}
                   disabled={deleting}
-                  className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-50"
+                  className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={confirmDelete}
                   disabled={deleting}
-                  className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-white transition-colors hover:bg-red-700 disabled:opacity-50"
                 >
                   {deleting ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                       Eliminando...
                     </>
                   ) : (
@@ -323,141 +310,135 @@ export default function ContractsPage() {
         </div>
       )}
 
-      {/* BUSCADOR Y FILTROS */}
-      <div className="rounded-2xl bg-white p-4 shadow-sm border border-slate-200/60 flex-shrink-0 mb-4">
+      <div className="mb-4 flex-shrink-0 rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <input
             type="text"
-            placeholder="Buscar por contrato o cliente..."
+            placeholder="Buscar por contrato, cliente o archivo..."
             className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm text-slate-700 outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20 lg:max-w-md"
             onChange={(e) => setSearch(e.target.value)}
           />
 
           <div className="flex flex-wrap items-center gap-2">
-            {["all", "ACTIVO", "POR_VENCER", "EXPIRADO"].map((f) => (
+            {FILTER_OPTIONS.map((option) => (
               <button
-                key={f}
-                onClick={() => setFilter(f)}
+                key={option.value}
+                onClick={() => setFilter(option.value)}
                 className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
-                  filter === f
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  filter === option.value ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
-                {f === "all" ? "Todos" : statusLabel(f)}
+                {option.label}
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* TABLA - Se ajusta al contenido */}
-      <div className="rounded-2xl bg-white shadow-sm border border-slate-200/60 flex flex-col">
+      <div className="flex flex-col rounded-2xl border border-slate-200/60 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm table-fixed">
-              <colgroup>
-                <col className="w-[5%]" />
-                <col className="w-[18%]" />
-                <col className="w-[14%]" />
-                <col className="w-[9%]" />
-                <col className="w-[10%]" />
-                <col className="w-[10%]" />
-                <col className="w-[10%]" />
-                <col className="w-[7%]" />
-                <col className="w-[9%]" />
-                <col className="w-[8%]" />
-              </colgroup>
+          <table className="min-w-full table-fixed text-sm">
+            <colgroup>
+              <col className="w-[5%]" />
+              <col className="w-[20%]" />
+              <col className="w-[14%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
+              <col className="w-[12%]" />
+              <col className="w-[8%]" />
+              <col className="w-[9%]" />
+              <col className="w-[8%]" />
+            </colgroup>
             <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-slate-100/80 border-b border-slate-200">
+              <tr className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-slate-100/80">
                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">ID</th>
                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Contrato</th>
                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Cliente</th>
                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Tipo</th>
                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Inicio</th>
                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Vencimiento</th>
-                <th className="px-4 py-4 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Valor</th>
-                <th className="px-4 py-4 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Licencias</th>
+                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Archivo</th>
+                <th className="px-4 py-4 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Servicios</th>
                 <th className="px-4 py-4 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Estado</th>
                 <th className="px-4 py-4 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Acciones</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-slate-100">
-              {paginatedData.map((c, index) => (
-                <tr
-                  key={c.id}
-                  className={`group transition-colors hover:bg-blue-50/50 ${
-                    index % 2 === 0 ? "bg-white" : "bg-slate-50/30"
-                  }`}
-                >
-                  <td className="px-4 py-3 text-slate-500 font-mono text-xs">{c.id}</td>
-                  <td className="px-4 py-3">
-                    <span className="font-medium text-slate-800">{c.name}</span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{c.client}</td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
-                      {c.type}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600 tabular-nums">{c.start_date}</td>
-                  <td className="px-4 py-3 text-slate-600 tabular-nums">{c.end_date}</td>
-                  <td className="px-4 py-3 text-right font-medium text-slate-800 tabular-nums">
-                    {c.currency} {c.value.toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <span className="inline-flex items-center justify-center min-w-[2rem] rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
-                      {c.licenses}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusStyle(
-                        c.state
-                      )}`}
-                    >
-                      {statusLabel(c.state)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-1">
-                      <button
-                        onClick={() => handleView(c)}
-                        className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
-                        title="Ver detalle"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleEdit(c)}
-                        className="p-2 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-all"
-                        title="Editar"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteClick(c)}
-                        className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all"
-                        title="Eliminar"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {paginatedContracts.map((contract, index) => {
+                const summary = getDocumentSummary(contract);
+                const fileLabel = getDocumentFileLabel(contract);
 
-              {paginatedData.length === 0 && (
+                return (
+                  <tr
+                    key={contract.id}
+                    className={`group transition-colors hover:bg-blue-50/50 ${index % 2 === 0 ? "bg-white" : "bg-slate-50/30"}`}
+                  >
+                    <td className="px-4 py-3 font-mono text-xs text-slate-500">{contract.id}</td>
+                    <td className="px-4 py-3">
+                      <span className="block font-medium text-slate-800">{contract.name}</span>
+                      {summary && <span className="mt-1 block truncate text-xs text-slate-500">{summary}</span>}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{contract.client}</td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                        {getDocumentTypeLabel(contract.type)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 tabular-nums text-slate-600">{contract.start_date}</td>
+                    <td className="px-4 py-3 tabular-nums text-slate-600">{contract.end_date}</td>
+                    <td className="px-4 py-3">
+                      <span className={`block truncate text-sm ${contract.file_name ? "text-slate-700" : "text-slate-400"}`}>
+                        {fileLabel}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="inline-flex min-w-[2.5rem] items-center justify-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                        {contract.service_items.length}
+                      </span>
+                      <span className="mt-1 block text-[11px] text-slate-500">{getServiceCountLabel(contract.service_items.length)}</span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${getDocumentStateClasses(contract.state)}`}>
+                        {getDocumentStateLabel(contract.state)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => handleView(contract)}
+                          className="rounded-lg p-2 text-slate-400 transition-all hover:bg-blue-50 hover:text-blue-600"
+                          title="Ver detalle"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleEdit(contract)}
+                          className="rounded-lg p-2 text-slate-400 transition-all hover:bg-amber-50 hover:text-amber-600"
+                          title="Editar"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClick(contract)}
+                          className="rounded-lg p-2 text-slate-400 transition-all hover:bg-red-50 hover:text-red-600"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {paginatedContracts.length === 0 && (
                 <tr>
                   <td colSpan={10} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center">
-                      <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mb-3">
-                        <svg
-                          className="w-7 h-7 text-slate-400"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
+                      <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
+                        <svg className="h-7 w-7 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path
                             strokeLinecap="round"
                             strokeLinejoin="round"
@@ -466,8 +447,8 @@ export default function ContractsPage() {
                           />
                         </svg>
                       </div>
-                      <p className="text-slate-500 font-medium">No se encontraron contratos</p>
-                      <p className="text-slate-400 text-sm mt-1">Intenta ajustar los filtros de búsqueda</p>
+                      <p className="font-medium text-slate-500">No se encontraron contratos</p>
+                      <p className="mt-1 text-sm text-slate-400">Intenta ajustar los filtros de búsqueda</p>
                     </div>
                   </td>
                 </tr>
@@ -476,19 +457,14 @@ export default function ContractsPage() {
           </table>
         </div>
 
-        {/* PAGINACIÓN */}
-        {filtered.length > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-200 bg-slate-50/50 px-4 py-3">
-            {/* Info y selector de items por página */}
+        {filteredContracts.length > 0 && (
+          <div className="flex flex-col items-center justify-between gap-4 border-t border-slate-200 bg-slate-50/50 px-4 py-3 sm:flex-row">
             <div className="flex items-center gap-4 text-sm text-slate-600">
               <span>
-                Mostrando{" "}
-                <span className="font-medium text-slate-800">{startIndex + 1}</span>
+                Mostrando <span className="font-medium text-slate-800">{startIndex + 1}</span>
                 {" - "}
-                <span className="font-medium text-slate-800">
-                  {Math.min(endIndex, filtered.length)}
-                </span>{" "}
-                de <span className="font-medium text-slate-800">{filtered.length}</span>
+                <span className="font-medium text-slate-800">{Math.min(endIndex, filteredContracts.length)}</span> de{" "}
+                <span className="font-medium text-slate-800">{filteredContracts.length}</span>
               </span>
 
               <div className="flex items-center gap-2">
@@ -504,53 +480,43 @@ export default function ContractsPage() {
                   }}
                   className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 >
-                  {[5, 9, 10, 15, 20].map((n) => (
-                    <option key={n} value={n}>
-                      {n}
+                  {[5, 9, 10, 15, 20].map((rows) => (
+                    <option key={rows} value={rows}>
+                      {rows}
                     </option>
                   ))}
                 </select>
               </div>
             </div>
 
-            {/* Controles de navegación */}
             <div className="flex items-center gap-1">
               <button
                 onClick={() => goToPage(1)}
                 disabled={currentPage === 1}
-                className="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-200/60 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                className="rounded-lg p-2 text-slate-500 transition-all hover:bg-slate-200/60 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
                 title="Primera página"
               >
-                <ChevronsLeft className="w-4 h-4" />
+                <ChevronsLeft className="h-4 w-4" />
               </button>
               <button
                 onClick={() => goToPage(currentPage - 1)}
                 disabled={currentPage === 1}
-                className="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-200/60 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                className="rounded-lg p-2 text-slate-500 transition-all hover:bg-slate-200/60 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
                 title="Página anterior"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="h-4 w-4" />
               </button>
 
-              {/* Números de página */}
-              <div className="flex items-center gap-1 mx-2">
-                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                  .filter((page) => {
-                    if (page === 1 || page === totalPages) return true;
-                    if (Math.abs(page - currentPage) <= 1) return true;
-                    return false;
-                  })
+              <div className="mx-2 flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, index) => index + 1)
+                  .filter((page) => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1)
                   .map((page, index, array) => (
                     <span key={page} className="flex items-center">
-                      {index > 0 && array[index - 1] !== page - 1 && (
-                        <span className="px-1 text-slate-400">...</span>
-                      )}
+                      {index > 0 && array[index - 1] !== page - 1 && <span className="px-1 text-slate-400">...</span>}
                       <button
                         onClick={() => goToPage(page)}
-                        className={`min-w-[2.25rem] h-9 rounded-lg text-sm font-medium transition-all ${
-                          currentPage === page
-                            ? "bg-blue-600 text-white shadow-sm"
-                            : "text-slate-600 hover:bg-slate-200/60"
+                        className={`h-9 min-w-[2.25rem] rounded-lg text-sm font-medium transition-all ${
+                          currentPage === page ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-200/60"
                         }`}
                       >
                         {page}
@@ -562,18 +528,18 @@ export default function ContractsPage() {
               <button
                 onClick={() => goToPage(currentPage + 1)}
                 disabled={currentPage === totalPages}
-                className="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-200/60 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                className="rounded-lg p-2 text-slate-500 transition-all hover:bg-slate-200/60 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
                 title="Página siguiente"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="h-4 w-4" />
               </button>
               <button
                 onClick={() => goToPage(totalPages)}
                 disabled={currentPage === totalPages}
-                className="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-200/60 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                className="rounded-lg p-2 text-slate-500 transition-all hover:bg-slate-200/60 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
                 title="Última página"
               >
-                <ChevronsRight className="w-4 h-4" />
+                <ChevronsRight className="h-4 w-4" />
               </button>
             </div>
           </div>

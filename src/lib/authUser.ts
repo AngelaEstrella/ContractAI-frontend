@@ -63,7 +63,7 @@ export const mapSupabaseUserToAuthUser = (user: SupabaseUser): AuthDisplayUser =
 };
 
 export const mapBackendUserToAuthUser = (user: BackendUser): AuthDisplayUser => ({
-  id: user.id,
+  id: String(user.id),
   name: user.full_name ? toNameAndLastName(user.full_name) : fallbackNameFromEmail(user.email),
   email: user.email,
   role: user.role,
