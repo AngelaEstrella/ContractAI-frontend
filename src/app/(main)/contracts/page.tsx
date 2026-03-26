@@ -223,7 +223,7 @@ export default function ContractsPage() {
           onClick={closeForm}
         >
           <div
-            className="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
+            className="relative h-[700px] w-full max-w-[650px] flex flex-col rounded-2xl bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -244,7 +244,7 @@ export default function ContractsPage() {
           onClick={() => setShowEditForm(false)}
         >
           <div
-            className="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
+            className="relative h-[700px] w-full max-w-[650px] flex flex-col rounded-2xl bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -378,7 +378,6 @@ export default function ContractsPage() {
                     <td className="px-4 py-3 font-mono text-xs text-slate-500">{contract.id}</td>
                     <td className="px-4 py-3">
                       <span className="block font-medium text-slate-800">{contract.name}</span>
-                      {summary && <span className="mt-1 block truncate text-xs text-slate-500">{summary}</span>}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{contract.client}</td>
                     <td className="px-4 py-3">
