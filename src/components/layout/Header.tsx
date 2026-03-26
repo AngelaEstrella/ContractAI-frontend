@@ -7,9 +7,14 @@ import { getCurrentUser, logout as clearApiSession } from "@/lib/api";
 import { useAuthStore } from "@/store";
 import { supabase } from "@/lib/supabaseClient";
 import { mapBackendUserToAuthUser, mapSupabaseUserToAuthUser, toNameAndLastName } from "@/lib/authUser";
+import NotificationDropdown from "./NotificationDropdown";
+import NotificationSidebar from "./NotificationSidebar";
+import { mockNotifications } from "@/lib/mockNotifications";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const router = useRouter();
   const { user, setUser, logout } = useAuthStore();
 
@@ -83,10 +88,28 @@ export default function Header() {
   return (
     <header className="bg-white border-b border-gray-200 flex items-center justify-end px-8 py-4">
       <div className="flex items-center gap-4">
-        <button className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors">
-          <Bell size={22} />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setIsDropdownOpen((prev) => !prev)}
+            className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <Bell size={22} />
+            {mockNotifications.some((n) => !n.read) && (
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+            )}
+          </button>
+
+          {isDropdownOpen && (
+            <NotificationDropdown
+              onViewAll={() => setIsSidebarOpen(true)}
+              onClose={() => setIsDropdownOpen(false)}
+            />
+          )}
+        </div>
+
+        {isSidebarOpen && (
+          <NotificationSidebar onClose={() => setIsSidebarOpen(false)} />
+        )}
 
         <div className="relative">
           <button
