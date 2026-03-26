@@ -21,8 +21,7 @@ import {
   getDocumentStateLabel,
   getDocumentTypeLabel,
 } from "@/lib/document.utils";
-import { supabase } from "@/lib/supabaseClient";
-import { mapSupabaseUserToAuthUser, toFirstName } from "@/lib/authUser";
+import { toFirstName } from "@/lib/authUser";
 import { Document, DocumentState } from "@/types/api.types";
 import { useAuthStore } from "@/store";
 
@@ -84,7 +83,7 @@ const formatChange = (current: number, previous: number): { label: string; posit
 };
 
 export default function DashboardPage() {
-  const { user, setUser } = useAuthStore();
+  const { user } = useAuthStore();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -109,24 +108,6 @@ export default function DashboardPage() {
 
     loadDocuments();
   }, []);
-
-  useEffect(() => {
-    if (user) {
-      return;
-    }
-
-    const syncUser = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (session?.user) {
-        setUser(mapSupabaseUserToAuthUser(session.user));
-      }
-    };
-
-    syncUser();
-  }, [setUser, user]);
 
   const firstName = toFirstName(user?.name || "Alex");
 

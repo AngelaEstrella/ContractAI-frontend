@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, User, LogOut } from "lucide-react";
-import { getCurrentUser, logout as clearApiSession } from "@/lib/api";
+import { logout as clearApiSession } from "@/lib/api";
 import { useAuthStore } from "@/store";
 import { supabase } from "@/lib/supabaseClient";
-import { mapBackendUserToAuthUser, mapSupabaseUserToAuthUser, toNameAndLastName } from "@/lib/authUser";
+import { toNameAndLastName } from "@/lib/authUser";
 import NotificationDropdown from "./NotificationDropdown";
 import NotificationSidebar from "./NotificationSidebar";
 import { mockNotifications } from "@/lib/mockNotifications";
@@ -16,63 +16,11 @@ export default function Header() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const router = useRouter();
-  const { user, setUser, logout } = useAuthStore();
+  const { isHydrating, user, logout } = useAuthStore();
 
-  const userName = toNameAndLastName(user?.name || "Alex Carter");
-  const userRole = user?.role || "worker";
+  const userName = toNameAndLastName(user?.name || (isHydrating ? "Cargando usuario" : "Alex Carter"));
+  const userRole = user?.role || (isHydrating ? "..." : "worker");
   const userInitials = userName.split(" ").map((n) => n[0]).join("");
-
-  useEffect(() => {
-    let mounted = true;
-
-    const syncUser = async () => {
-      if (user) {
-        return;
-      }
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!mounted || !session?.user) {
-        return;
-      }
-
-      try {
-        const backendUser = await getCurrentUser();
-        if (!mounted) {
-          return;
-        }
-        setUser(mapBackendUserToAuthUser(backendUser));
-      } catch {
-        setUser(mapSupabaseUserToAuthUser(session.user));
-      }
-    };
-
-    syncUser();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) {
-        return;
-      }
-
-      if (session?.user) {
-        localStorage.setItem("access_token", session.access_token);
-        syncUser();
-        return;
-      }
-
-      clearApiSession();
-      logout();
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [logout, setUser, user]);
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();

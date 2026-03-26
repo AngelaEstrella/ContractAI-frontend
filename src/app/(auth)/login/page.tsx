@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { supabase } from "@/lib/supabaseClient";
-import { mapSupabaseUserToAuthUser } from "@/lib/authUser";
 import { useAuthStore } from "@/store";
 
 type AuthUserPreview = {
@@ -15,12 +14,10 @@ type AuthUserPreview = {
 
 export default function LoginPage() {
   const router = useRouter();
-  const { setUser } = useAuthStore();
+  const { isHydrating, user } = useAuthStore();
 
-  const [loading, setLoading] = useState(true);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [authUser, setAuthUser] = useState<AuthUserPreview | null>(null);
 
   const callbackUrl = useMemo(() => {
     if (typeof window === "undefined") {
@@ -29,78 +26,13 @@ export default function LoginPage() {
     return `${window.location.origin}/auth/callback`;
   }, []);
 
-  useEffect(() => {
-    let mounted = true;
-
-    const syncSession = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const {
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession();
-
-        if (sessionError) {
-          throw sessionError;
-        }
-
-        if (!mounted) {
-          return;
-        }
-
-        if (session?.user) {
-          const normalizedUser = mapSupabaseUserToAuthUser(session.user);
-          setUser(normalizedUser);
-          setAuthUser({
-            name: normalizedUser.name,
-            email: normalizedUser.email,
-            avatarUrl: normalizedUser.avatarUrl,
-          });
-        } else {
-          setAuthUser(null);
-        }
-      } catch (err) {
-        if (!mounted) {
-          return;
-        }
-        setError(err instanceof Error ? err.message : "No se pudo obtener la sesión");
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+  const authUser: AuthUserPreview | null = user
+    ? {
+        name: user.name,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
       }
-    };
-
-    syncSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) {
-        return;
-      }
-
-      if (session?.user) {
-        const normalizedUser = mapSupabaseUserToAuthUser(session.user);
-        setUser(normalizedUser);
-        setAuthUser({
-          name: normalizedUser.name,
-          email: normalizedUser.email,
-          avatarUrl: normalizedUser.avatarUrl,
-        });
-        return;
-      }
-
-      setAuthUser(null);
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [setUser]);
+    : null;
 
   const handleGoogleLogin = async () => {
     try {
@@ -216,7 +148,7 @@ export default function LoginPage() {
 
           {/* Authentication Section */}
           <div className="w-full">
-            {loading ? (
+            {isHydrating ? (
               <div className="flex items-center justify-center gap-3 rounded-xl border border-indigo-100 bg-indigo-50/50 px-6 py-4">
                 <svg
                   className="h-5 w-5 animate-spin text-indigo-600"

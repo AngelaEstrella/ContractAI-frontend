@@ -17,7 +17,7 @@ import {
   DocumentUpdateRequest,
   ServiceCatalogItem,
 } from '@/types/api.types';
-import { supabase } from '@/lib/supabaseClient';
+import { useAuthStore } from '@/store';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -38,6 +38,7 @@ let servicesCache: { data: ServiceCatalogItem[]; timestamp: number } | null = nu
 let servicesInFlight: Promise<ServiceCatalogItem[]> | null = null;
 let currentUserCache: { data: User; timestamp: number } | null = null;
 let currentUserInFlight: Promise<User> | null = null;
+let accessTokenMemory: string | null = null;
 
 const normalizeDocument = (document: Document): Document => ({
   ...document,
@@ -47,21 +48,60 @@ const normalizeDocument = (document: Document): Document => ({
   file_name: document.file_name ?? null,
 });
 
-async function getAccessToken(): Promise<string | null> {
+const resetApiCaches = (): void => {
+  currentUserCache = null;
+  currentUserInFlight = null;
+  documentsCache = null;
+  documentsInFlight = null;
+  servicesCache = null;
+  servicesInFlight = null;
+};
+
+const getStoredAccessToken = (): string | null => {
   if (typeof window === 'undefined') {
     return null;
   }
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  return localStorage.getItem('access_token');
+};
 
-  if (session?.access_token) {
-    localStorage.setItem('access_token', session.access_token);
-    return session.access_token;
+export function setApiAccessToken(token: string | null): void {
+  const normalizedToken = token || null;
+
+  if (accessTokenMemory !== normalizedToken) {
+    accessTokenMemory = normalizedToken;
+    resetApiCaches();
   }
 
-  return localStorage.getItem('access_token');
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  if (normalizedToken) {
+    localStorage.setItem('access_token', normalizedToken);
+    return;
+  }
+
+  localStorage.removeItem('access_token');
+}
+
+async function getAccessToken(): Promise<string | null> {
+  const storeToken = useAuthStore.getState().accessToken;
+  if (storeToken) {
+    accessTokenMemory = storeToken;
+    return storeToken;
+  }
+
+  if (accessTokenMemory) {
+    return accessTokenMemory;
+  }
+
+  const storedToken = getStoredAccessToken();
+  if (storedToken) {
+    accessTokenMemory = storedToken;
+  }
+
+  return storedToken;
 }
 
 // ============================================
@@ -129,20 +169,14 @@ export async function login(data: LoginRequest): Promise<LoginResponse> {
 
   // Guardar token en localStorage
   if (response.access_token) {
-    localStorage.setItem('access_token', response.access_token);
+    setApiAccessToken(response.access_token);
   }
 
   return response;
 }
 
 export function logout(): void {
-  localStorage.removeItem('access_token');
-  currentUserCache = null;
-  currentUserInFlight = null;
-  documentsCache = null;
-  documentsInFlight = null;
-  servicesCache = null;
-  servicesInFlight = null;
+  setApiAccessToken(null);
 }
 
 export async function getCurrentUser(): Promise<User> {
