@@ -3,6 +3,7 @@ import { DOCUMENT_STATE_OPTIONS } from "@/lib/document.utils";
 import type { Document, DocumentState } from "@/types/api.types";
 
 export type DocumentFilterValue = "all" | DocumentState;
+export const GOOGLE_DRIVE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 
 export const FILTER_OPTIONS: Array<{ value: DocumentFilterValue; label: string }> = [
   { value: "all", label: "Todos" },
@@ -33,7 +34,7 @@ export const mergeDriveSelections = (
 };
 
 export const getDriveItemTypeLabel = (mimeType: string): string => {
-  if (mimeType === "application/vnd.google-apps.folder") {
+  if (mimeType === GOOGLE_DRIVE_FOLDER_MIME_TYPE) {
     return "Carpeta";
   }
 
@@ -43,6 +44,10 @@ export const getDriveItemTypeLabel = (mimeType: string): string => {
 
   const [, subtype] = mimeType.split("/");
   return subtype ? subtype.toUpperCase() : "Archivo";
+};
+
+export const isDriveFolder = (file: Pick<GooglePickerFile, "mimeType">): boolean => {
+  return file.mimeType === GOOGLE_DRIVE_FOLDER_MIME_TYPE;
 };
 
 export const filterContracts = (

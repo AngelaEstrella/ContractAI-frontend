@@ -88,10 +88,26 @@ export function ContractsPageContent({
         </div>
       )}
 
+      {page.driveImportError && (
+        <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {page.driveImportError}
+        </div>
+      )}
+
+      {page.driveImportMessage && (
+        <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {page.driveImportMessage}
+        </div>
+      )}
+
       <ContractsDriveSelection
         activeFolderName={page.activeFolder.name}
+        isImportingDriveFiles={page.isImportingDriveFiles}
         isOpeningDrivePicker={page.isOpeningDrivePicker}
         onClearSelection={page.clearDriveSelection}
+        onImportSelection={() => {
+          void page.importSelectedDriveFiles();
+        }}
         onRemoveFile={page.removeDriveFile}
         onSelectMore={() => {
           void page.openDrivePicker();
@@ -104,6 +120,7 @@ export function ContractsPageContent({
           importControl={
             <ContractsImportMenu
               align="left"
+              isImportingDriveFiles={page.isImportingDriveFiles}
               isOpeningDrivePicker={page.isOpeningDrivePicker}
               onOpenDrive={page.openDrivePicker}
             />
@@ -116,6 +133,7 @@ export function ContractsPageContent({
             filter={page.filter}
             importControl={
               <ContractsImportMenu
+                isImportingDriveFiles={page.isImportingDriveFiles}
                 isOpeningDrivePicker={page.isOpeningDrivePicker}
                 onOpenDrive={page.openDrivePicker}
               />
