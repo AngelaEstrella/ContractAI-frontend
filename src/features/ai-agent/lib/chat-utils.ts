@@ -1,5 +1,5 @@
 import type { ConversationWithContent } from "@/types/api.types";
-import type { ChatMessage } from "@/features/ai-agent/types";
+import type { ChatMessage } from "@/features/ai-agent/lib/chat.types";
 
 export const CHAT_SUGGESTIONS = [
   "¿Que puedes hacer?",

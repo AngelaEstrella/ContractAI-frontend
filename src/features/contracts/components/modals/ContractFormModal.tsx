@@ -10,7 +10,7 @@ type ContractFormModalProps = {
   open: boolean;
 };
 
-const ContractForm = dynamic(() => import("@/features/contracts/components/contract-form/ContractForm"), {
+const ContractForm = dynamic(() => import("@/features/contracts/components/form/ContractForm"), {
   loading: () => (
     <div className="flex h-full items-center justify-center p-8">
       <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
