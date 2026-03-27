@@ -22,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="es">
       <body className={`${inter.variable} font-sans antialiased`}>
         <AuthBootstrap>{children}</AuthBootstrap>
       </body>

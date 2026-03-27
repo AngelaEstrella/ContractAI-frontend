@@ -1,23 +1,33 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  buildFormState,
+  createEmptyServiceItem,
+  formatCurrencyValue,
+  formatFormDate,
+  getFileTypeBadge,
+  getInitialContractTotal,
+  getServiceOptions,
+  HelpTip,
+  isAllowedFile,
+  parseOptionalNumber,
+  type FormState,
+  type ServiceItemDraft,
+  type Step1Draft,
+} from "@/features/contracts/lib/contract-form.utils";
 import { getServices, uploadDocument, updateDocument } from "@/lib/api";
 import {
   CURRENCY_OPTIONS,
   DOCUMENT_STATE_OPTIONS,
   DOCUMENT_TYPE_OPTIONS,
-  getDocumentPrimaryCurrency,
   getDocumentStateLabel,
-  getDocumentTotalValue,
   getDocumentTypeLabel,
 } from "@/lib/document.utils";
 import {
-  CurrencyType,
   Document,
   DocumentFormData,
   DocumentServiceItemPayload,
-  DocumentState,
-  DocumentType,
   ServiceCatalogItem,
 } from "@/types/api.types";
 import {
@@ -26,7 +36,6 @@ import {
   CheckCircle2,
   ChevronDown,
   FileText,
-  HelpCircle,
   Pencil,
   Plus,
   Trash2,
@@ -44,113 +53,6 @@ type Props = {
   readonly editMode?: boolean;
   readonly initialData?: Document;
 };
-
-type ServiceItemDraft = {
-  key: string;
-  service_id: string;
-  description: string;
-  value: string;
-  start_date: string;
-  end_date: string;
-};
-
-type FormState = {
-  name: string;
-  client: string;
-  type: DocumentType;
-  start_date: string;
-  end_date: string;
-  state: DocumentState;
-  contract_currency: CurrencyType;
-  service_items: ServiceItemDraft[];
-};
-
-type Step1Draft = Pick<FormState, "name" | "client" | "type" | "state" | "start_date" | "end_date" | "contract_currency">;
-
-// ─────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────
-
-const createDraftKey = (): string =>
-  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2, 10);
-
-const createEmptyServiceItem = (start: string, end: string): ServiceItemDraft => ({
-  key: createDraftKey(),
-  service_id: "",
-  description: "",
-  value: "",
-  start_date: start,
-  end_date: end,
-});
-
-const buildFormState = (doc?: Document): FormState => ({
-  name: doc?.name ?? "",
-  client: doc?.client ?? "",
-  type: doc?.type ?? "SERVICES",
-  start_date: doc?.start_date ?? "",
-  end_date: doc?.end_date ?? "",
-  state: doc?.state ?? "ACTIVE",
-  contract_currency: doc ? (getDocumentPrimaryCurrency(doc) ?? "USD") : "USD",
-  service_items:
-    doc?.service_items.map((item) => ({
-      key: createDraftKey(),
-      service_id: String(item.service_id),
-      description: item.description ?? "",
-      value: String(item.value),
-      start_date: item.start_date,
-      end_date: item.end_date,
-    })) ?? [],
-});
-
-const parseOptionalNumber = (value: string): number | undefined => {
-  const t = value.trim();
-  if (!t) return undefined;
-  const n = Number(t);
-  return Number.isFinite(n) ? n : undefined;
-};
-
-const fmt = (value: number): string =>
-  value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-const fmtDate = (date: string): string => {
-  if (!date) return "—";
-  const [y, m, d] = date.split("-");
-  return `${d}/${m}/${y}`;
-};
-
-const ALLOWED_EXTENSIONS = new Set(["pdf", "xlsx", "xls", "doc", "docx"]);
-
-const getFileExt = (filename: string): string =>
-  filename.split(".").pop()?.toLowerCase() ?? "";
-
-const isAllowedFile = (filename: string): boolean =>
-  ALLOWED_EXTENSIONS.has(getFileExt(filename));
-
-const getFileTypeBadge = (filename: string): { label: string; bg: string; text: string } => {
-  const ext = getFileExt(filename);
-  if (ext === "pdf") return { label: "PDF", bg: "bg-red-100", text: "text-red-600" };
-  if (ext === "xlsx" || ext === "xls") return { label: "XLS", bg: "bg-green-100", text: "text-green-600" };
-  if (ext === "doc" || ext === "docx") return { label: "DOC", bg: "bg-blue-100", text: "text-blue-600" };
-  return { label: "FILE", bg: "bg-slate-100", text: "text-slate-600" };
-};
-
-// ─────────────────────────────────────────────
-// HelpTip – tooltip standalone component
-// ─────────────────────────────────────────────
-
-function HelpTip({ text }: { readonly text: string }) {
-  return (
-    <span className="group relative ml-1.5 inline-flex cursor-help align-middle">
-      <HelpCircle className="h-3.5 w-3.5 text-slate-400 transition-colors group-hover:text-blue-500" />
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-60 -translate-x-1/2 rounded-xl bg-slate-800 px-3 py-2.5 text-xs leading-relaxed text-white opacity-0 shadow-2xl transition-opacity duration-150 group-hover:opacity-100">
-        {text}
-        <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
-      </span>
-    </span>
-  );
-}
 
 // ─────────────────────────────────────────────
 // Main component
@@ -228,19 +130,14 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
 
   // ── Derived ──
   const initialTotalFallback = useMemo(
-    () => (initialData ? getDocumentTotalValue(initialData) : 0),
+    () => getInitialContractTotal(initialData),
     [initialData],
   );
 
-  const serviceOptions = useMemo(() => {
-    const map = new Map<string, ServiceCatalogItem>();
-    services.forEach((s) => map.set(String(s.id), s));
-    form.service_items.forEach((item) => {
-      if (item.service_id && !map.has(item.service_id))
-        map.set(item.service_id, { id: Number(item.service_id), name: `Servicio #${item.service_id}` });
-    });
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, "es"));
-  }, [form.service_items, services]);
+  const serviceOptions = useMemo(
+    () => getServiceOptions(services, form.service_items),
+    [form.service_items, services],
+  );
 
   const calculatedTotal = useMemo(
     () => form.service_items.reduce((sum, item) => sum + (parseOptionalNumber(item.value) ?? 0), 0),
@@ -646,7 +543,7 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
                         <>
                           {item.description && <span>·</span>}
                           <span className="font-medium text-slate-600">
-                            {form.contract_currency} {fmt(parseOptionalNumber(item.value) ?? 0)}
+                            {form.contract_currency} {formatCurrencyValue(parseOptionalNumber(item.value) ?? 0)}
                           </span>
                         </>
                       )}
@@ -654,7 +551,7 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
                         <>
                           <span>·</span>
                           <CalendarDays className="h-3 w-3" />
-                          <span>{fmtDate(item.start_date)} – {fmtDate(item.end_date)}</span>
+                          <span>{formatFormDate(item.start_date)} – {formatFormDate(item.end_date)}</span>
                         </>
                       )}
                     </div>
@@ -784,7 +681,7 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
           <HelpTip text="Se calcula automáticamente sumando los valores de todos los servicios. No es editable de forma directa." />
         </div>
         <p className="text-base font-semibold text-slate-800">
-          {form.contract_currency} {fmt(contractTotal)}
+          {form.contract_currency} {formatCurrencyValue(contractTotal)}
         </p>
       </div>
     </>
@@ -864,7 +761,7 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
                       {form.client && <span className="text-slate-500"> · {form.client}</span>}
                       <span className="text-slate-400"> · {form.contract_currency}</span>
                       {form.start_date && form.end_date && (
-                        <span className="text-slate-400"> · {fmtDate(form.start_date)} — {fmtDate(form.end_date)}</span>
+                        <span className="text-slate-400"> · {formatFormDate(form.start_date)} — {formatFormDate(form.end_date)}</span>
                       )}
                     </p>
                   )}
@@ -993,7 +890,7 @@ export default function AddContractForm({ onAdd, onClose, editMode = false, init
                     <p className="mt-0.5 text-sm text-slate-700">
                       {form.service_items.length === 0
                         ? <span className="text-slate-400">Sin servicios asociados</span>
-                        : <><span className="font-medium">{form.service_items.length} servicio{form.service_items.length !== 1 ? "s" : ""}</span><span className="text-slate-400"> · Total: {form.contract_currency} {fmt(contractTotal)}</span></>
+                        : <><span className="font-medium">{form.service_items.length} servicio{form.service_items.length !== 1 ? "s" : ""}</span><span className="text-slate-400"> · Total: {form.contract_currency} {formatCurrencyValue(contractTotal)}</span></>
                       }
                     </p>
                   )}

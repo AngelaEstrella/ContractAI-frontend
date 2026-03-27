@@ -2,10 +2,10 @@
 
 import type { Session } from "@supabase/supabase-js";
 import { useEffect } from "react";
-import { mapBackendUserToAuthUser, mapSupabaseUserToAuthUser } from "@/lib/authUser";
-import { getCurrentUser, logout as clearApiSession, setApiAccessToken } from "@/lib/api";
+import { logout as clearApiSession, setApiAccessToken } from "@/lib/api";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuthStore } from "@/store";
+import { resolveSessionUser } from "@/features/auth/lib/resolve-session-user";
 
 type Props = {
   readonly children: React.ReactNode;
@@ -18,6 +18,12 @@ export default function AuthBootstrap({ children }: Props) {
     let mounted = true;
     let syncRun = 0;
 
+    const resetSessionState = () => {
+      setApiAccessToken(null);
+      logout();
+      setHydrating(false);
+    };
+
     const syncSession = async (session: Session | null) => {
       const currentRun = ++syncRun;
 
@@ -28,10 +34,8 @@ export default function AuthBootstrap({ children }: Props) {
       setHydrating(true);
 
       if (!session?.user) {
-        setApiAccessToken(null);
         if (mounted && currentRun === syncRun) {
-          logout();
-          setHydrating(false);
+          resetSessionState();
         }
         return;
       }
@@ -39,18 +43,13 @@ export default function AuthBootstrap({ children }: Props) {
       setApiAccessToken(session.access_token);
 
       try {
-        const backendUser = await getCurrentUser();
+        const authUser = await resolveSessionUser(session);
+
         if (!mounted || currentRun !== syncRun) {
           return;
         }
 
-        setSession(mapBackendUserToAuthUser(backendUser), session.access_token);
-      } catch {
-        if (!mounted || currentRun !== syncRun) {
-          return;
-        }
-
-        setSession(mapSupabaseUserToAuthUser(session.user), session.access_token);
+        setSession(authUser, session.access_token);
       } finally {
         if (mounted && currentRun === syncRun) {
           setHydrating(false);
@@ -72,8 +71,7 @@ export default function AuthBootstrap({ children }: Props) {
       } catch {
         clearApiSession();
         if (mounted) {
-          logout();
-          setHydrating(false);
+          resetSessionState();
         }
       }
     };

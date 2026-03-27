@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, User, LogOut } from "lucide-react";
@@ -7,9 +8,17 @@ import { logout as clearApiSession } from "@/lib/api";
 import { useAuthStore } from "@/store";
 import { supabase } from "@/lib/supabaseClient";
 import { toNameAndLastName } from "@/lib/authUser";
-import NotificationDropdown from "./NotificationDropdown";
-import NotificationSidebar from "./NotificationSidebar";
 import { mockNotifications } from "@/lib/mockNotifications";
+
+const NotificationDropdown = dynamic(() => import("./NotificationDropdown"), {
+  loading: () => null,
+});
+
+const NotificationSidebar = dynamic(() => import("./NotificationSidebar"), {
+  loading: () => null,
+});
+
+const hasUnreadNotifications = mockNotifications.some((notification) => !notification.read);
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -18,9 +27,15 @@ export default function Header() {
   const router = useRouter();
   const { isHydrating, user, logout } = useAuthStore();
 
-  const userName = toNameAndLastName(user?.name || (isHydrating ? "Cargando usuario" : "Alex Carter"));
-  const userRole = user?.role || (isHydrating ? "..." : "worker");
-  const userInitials = userName.split(" ").map((n) => n[0]).join("");
+  const userName = toNameAndLastName(user?.name || (isHydrating ? "Cargando usuario" : "Usuario"));
+  const userRole = user?.role || (isHydrating ? "..." : "Sin rol");
+  const userInitials =
+    userName
+      .split(" ")
+      .filter(Boolean)
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2) || "U";
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -42,7 +57,7 @@ export default function Header() {
             className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
           >
             <Bell size={22} />
-            {mockNotifications.some((n) => !n.read) && (
+            {hasUnreadNotifications && (
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
             )}
           </button>
