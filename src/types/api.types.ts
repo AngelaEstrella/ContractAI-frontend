@@ -158,6 +158,20 @@ export interface DocumentFileUrlResponse {
 }
 
 // ============================================
+// NOTIFICATION TYPES
+// ============================================
+export type NotificationType = "critical" | "warning" | "info";
+
+export interface Notification {
+  id: string;         // "contract-{doc_id}-{days}" — stable for localStorage
+  document_id: number;
+  type: NotificationType;
+  title: string;
+  description: string;
+  days_remaining: number;
+}
+
+// ============================================
 // API RESPONSE TYPES
 // ============================================
 export type ApiStatus = 'idle' | 'loading' | 'success' | 'error';

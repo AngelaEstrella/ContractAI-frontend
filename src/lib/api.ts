@@ -9,6 +9,7 @@ export {
   updateDocument,
   uploadDocument,
 } from "./api/documents";
+export { getNotifications } from "./api/notifications";
 export { TIMEOUTS } from "./api/constants";
 export { fetchAPI } from "./api/fetch-client";
 export { setApiAccessToken } from "./api/token-store";
