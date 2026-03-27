@@ -66,13 +66,17 @@ export function useContractForm({
       return "Guarda o cancela el servicio actual antes de continuar.";
     }
 
+    if (form.service_items.length === 0) {
+      return "Debe agregar al menos un servicio.";
+    }
+
     try {
       buildServiceItemsPayload();
       return null;
     } catch (err) {
       return err instanceof Error ? err.message : "Error en los servicios.";
     }
-  }, [addingService, buildServiceItemsPayload]);
+  }, [addingService, buildServiceItemsPayload, form.service_items.length]);
 
   const wizardState = useContractFormWizard({
     form,
@@ -136,9 +140,14 @@ export function useContractForm({
   } = fileState;
 
   const handleSubmit = useCallback(async () => {
+    if (form.service_items.length === 0) {
+      setError("Debe agregar al menos un servicio.");
+      return;
+    }
+
     if (!hasValidFile) {
       setFileError(true);
-      setError("Debes tener un archivo PDF asociado al contrato.");
+      setError("Adjuntar un archivo asociado al contrato.");
       return;
     }
 

@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { X, AlertCircle, AlertTriangle, Info, Trash2 } from "lucide-react";
-import { mockNotifications, type Notification, type NotificationType } from "@/lib/mockNotifications";
+import { getDaysLabel, type NotificationType } from "@/lib/mockNotifications";
+import type { DisplayNotification } from "./Header";
 
 type Filter = "all" | "critical" | "warning";
 
@@ -37,18 +39,26 @@ const typeConfig: Record<
 };
 
 interface Props {
+  notifications: DisplayNotification[];
   onClose: () => void;
+  onDeleteOne: (id: string) => void;
+  onDeleteAll: () => void;
+  onMarkAllAsRead: () => void;
 }
 
-export default function NotificationSidebar({ onClose }: Props) {
+export default function NotificationSidebar({
+  notifications,
+  onClose,
+  onDeleteOne,
+  onDeleteAll,
+  onMarkAllAsRead,
+}: Props) {
   const [activeFilter, setActiveFilter] = useState<Filter>("all");
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
+  const router = useRouter();
 
   const filtered = notifications.filter(
     (n) => activeFilter === "all" || n.type === activeFilter
   );
-
-  const handleClearAll = () => setNotifications([]);
 
   return (
     <>
@@ -76,13 +86,23 @@ export default function NotificationSidebar({ onClose }: Props) {
               <h2 className="text-lg font-bold text-gray-900">Notificaciones</h2>
               <p className="text-sm text-gray-500 mt-0.5">Actividad Reciente</p>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white/60 rounded-full transition-colors"
-              aria-label="Cerrar"
-            >
-              <X size={20} />
-            </button>
+            <div className="flex items-center gap-2">
+              {notifications.some((n) => !n.read) && (
+                <button
+                  onClick={onMarkAllAsRead}
+                  className="text-xs text-[var(--primary)] hover:underline"
+                >
+                  Marcar todas leídas
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white/60 rounded-full transition-colors"
+                aria-label="Cerrar"
+              >
+                <X size={20} />
+              </button>
+            </div>
           </div>
 
           {/* Filtros */}
@@ -132,10 +152,8 @@ export default function NotificationSidebar({ onClose }: Props) {
                         <p className="text-sm font-semibold text-gray-800">
                           {notification.title}
                         </p>
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${badge}`}
-                        >
-                          {notification.timeLabel}
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${badge}`}>
+                          {getDaysLabel(notification.days_remaining)}
                         </span>
                       </div>
                       <p className="text-xs text-gray-600 leading-relaxed">
@@ -143,22 +161,20 @@ export default function NotificationSidebar({ onClose }: Props) {
                       </p>
 
                       {/* Botones de acción */}
-                      {notification.actions.length > 0 && (
-                        <div className="flex gap-2 mt-3">
-                          {notification.actions.map((action) => (
-                            <button
-                              key={action.label}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                                action.variant === "primary"
-                                  ? "bg-[var(--primary)] text-white hover:bg-[var(--primary-dark)]"
-                                  : "bg-white/60 text-gray-600 border border-white/50 hover:bg-white/80"
-                              }`}
-                            >
-                              {action.label}
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={() => { onClose(); router.push("/contracts"); }}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--primary)] text-white hover:bg-[var(--primary-dark)] transition-colors"
+                        >
+                          Ver contrato
+                        </button>
+                        <button
+                          onClick={() => onDeleteOne(notification.id)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/60 text-gray-600 border border-white/50 hover:bg-white/80 transition-colors"
+                        >
+                          Descartar
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -171,7 +187,7 @@ export default function NotificationSidebar({ onClose }: Props) {
         {notifications.length > 0 && (
           <div className="px-6 py-4 border-t border-white/30">
             <button
-              onClick={handleClearAll}
+              onClick={onDeleteAll}
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50/50 transition-colors"
             >
               <Trash2 size={16} />
