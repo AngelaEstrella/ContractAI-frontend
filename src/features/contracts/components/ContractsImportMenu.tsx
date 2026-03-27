@@ -8,14 +8,12 @@ type ContractsImportMenuProps = {
   align?: "left" | "right";
   isOpeningDrivePicker: boolean;
   onOpenDrive: () => Promise<void> | void;
-  onOpenLocalImport: () => void;
 };
 
 export function ContractsImportMenu({
   align = "right",
   isOpeningDrivePicker,
   onOpenDrive,
-  onOpenLocalImport,
 }: ContractsImportMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -66,18 +64,6 @@ export function ContractsImportMenu({
         <div
           className={`absolute ${align === "right" ? "right-0" : "left-0"} top-full z-30 mt-1.5 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg`}
         >
-          <button
-            onClick={() => {
-              setIsOpen(false);
-              onOpenLocalImport();
-            }}
-            className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-700 transition-colors hover:bg-slate-50"
-          >
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100">
-              <Upload className="h-4 w-4" />
-            </div>
-            <span>Desde tu equipo</span>
-          </button>
           <button
             disabled={isOpeningDrivePicker}
             onClick={() => {

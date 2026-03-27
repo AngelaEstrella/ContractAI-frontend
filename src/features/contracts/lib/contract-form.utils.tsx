@@ -17,6 +17,8 @@ export type ServiceItemDraft = {
   end_date: string;
 };
 
+export type ServiceItemDraftField = keyof Omit<ServiceItemDraft, "key">;
+
 export type FormState = {
   name: string;
   client: string;

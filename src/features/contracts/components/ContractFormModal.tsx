@@ -10,7 +10,7 @@ type ContractFormModalProps = {
   open: boolean;
 };
 
-const AddContractForm = dynamic(() => import("@/app/(main)/contracts/AddContractForm"), {
+const ContractForm = dynamic(() => import("@/features/contracts/components/contract-form/ContractForm"), {
   loading: () => (
     <div className="flex h-full items-center justify-center p-8">
       <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
@@ -44,7 +44,7 @@ export function ContractFormModal({
         >
           <X className="h-5 w-5" />
         </button>
-        <AddContractForm
+        <ContractForm
           onAdd={onSubmit}
           onClose={onClose}
           editMode={editMode}

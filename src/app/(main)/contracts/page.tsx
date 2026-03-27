@@ -6,7 +6,6 @@ import { deleteDocument, getDocumentFileUrl, getDocuments } from "@/lib/api";
 import { openGooglePicker, type GooglePickerFile } from "@/lib/googlePicker";
 import { ContractDeleteModal } from "@/features/contracts/components/ContractDeleteModal";
 import { ContractFormModal } from "@/features/contracts/components/ContractFormModal";
-import { ContractImportModal } from "@/features/contracts/components/ContractImportModal";
 import { ContractsActionsBar } from "@/features/contracts/components/ContractsActionsBar";
 import { ContractsDriveSelection } from "@/features/contracts/components/ContractsDriveSelection";
 import { ContractsEmptyState } from "@/features/contracts/components/ContractsEmptyState";
@@ -48,7 +47,6 @@ export default function ContractsPage() {
   const [itemsPerPage, setItemsPerPage] = useState(9);
   const [folders, setFolders] = useState<ContractFolder[]>(INITIAL_CONTRACT_FOLDERS);
   const [activeFolderId, setActiveFolderId] = useState<number>(INITIAL_CONTRACT_FOLDERS[0].id);
-  const [showImportModal, setShowImportModal] = useState(false);
   const [isOpeningDrivePicker, setIsOpeningDrivePicker] = useState(false);
   const [drivePickerError, setDrivePickerError] = useState<string | null>(null);
   const [googleDriveAccessToken, setGoogleDriveAccessToken] = useState<string | null>(null);
@@ -271,12 +269,6 @@ export default function ContractsPage() {
         open={showDeleteModal}
       />
 
-      <ContractImportModal
-        activeFolderName={activeFolder.name}
-        onClose={() => setShowImportModal(false)}
-        open={showImportModal}
-      />
-
       {drivePickerError && (
         <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {drivePickerError}
@@ -303,7 +295,6 @@ export default function ContractsPage() {
               align="left"
               isOpeningDrivePicker={isOpeningDrivePicker}
               onOpenDrive={handleDriveClick}
-              onOpenLocalImport={() => setShowImportModal(true)}
             />
           }
           onCreateContract={() => setShowForm(true)}
@@ -316,7 +307,6 @@ export default function ContractsPage() {
               <ContractsImportMenu
                 isOpeningDrivePicker={isOpeningDrivePicker}
                 onOpenDrive={handleDriveClick}
-                onOpenLocalImport={() => setShowImportModal(true)}
               />
             }
             onCreateContract={() => setShowForm(true)}
