@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { GOOGLE_DRIVE_SCOPE } from "@/lib/googlePicker";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuthStore } from "@/store";
 
@@ -43,6 +44,7 @@ export default function LoginPage() {
         provider: "google",
         options: {
           redirectTo: callbackUrl,
+          scopes: GOOGLE_DRIVE_SCOPE,
         },
       });
 

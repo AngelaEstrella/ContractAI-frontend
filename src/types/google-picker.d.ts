@@ -25,14 +25,20 @@ interface GoogleTokenResponse {
   token_type?: string;
 }
 
+interface GoogleTokenErrorCallback {
+  type?: string;
+}
+
 interface GoogleTokenClient {
-  requestAccessToken: (overrides?: { prompt?: string }) => void;
+  requestAccessToken: (overrides?: { prompt?: string; login_hint?: string }) => void;
 }
 
 interface GoogleTokenClientConfig {
   client_id: string;
   scope: string;
+  login_hint?: string;
   callback: (response: GoogleTokenResponse) => void;
+  error_callback?: (error: GoogleTokenErrorCallback) => void;
 }
 
 interface GoogleAccountsNamespace {

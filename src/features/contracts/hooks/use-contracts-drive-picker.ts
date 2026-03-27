@@ -3,11 +3,14 @@
 import { useCallback, useState } from "react";
 import { openGooglePicker, type GooglePickerFile } from "@/lib/googlePicker";
 import { mergeDriveSelections } from "@/features/contracts/lib/contracts-utils";
+import { useAuthStore } from "@/store";
 
 export function useContractsDrivePicker() {
+  const googleLoginHint = useAuthStore((state) => state.user?.email ?? null);
   const [isOpeningDrivePicker, setIsOpeningDrivePicker] = useState(false);
   const [drivePickerError, setDrivePickerError] = useState<string | null>(null);
   const [googleDriveAccessToken, setGoogleDriveAccessToken] = useState<string | null>(null);
+  const [googleDriveAccessTokenExpiresAt, setGoogleDriveAccessTokenExpiresAt] = useState<number | null>(null);
   const [selectedDriveFiles, setSelectedDriveFiles] = useState<GooglePickerFile[]>([]);
 
   const openDrivePicker = useCallback(async () => {
@@ -15,13 +18,18 @@ export function useContractsDrivePicker() {
     setIsOpeningDrivePicker(true);
 
     try {
-      const result = await openGooglePicker({ accessToken: googleDriveAccessToken });
+      const result = await openGooglePicker({
+        accessToken: googleDriveAccessToken,
+        accessTokenExpiresAt: googleDriveAccessTokenExpiresAt,
+        loginHint: googleLoginHint,
+      });
 
       if (!result || result.files.length === 0) {
         return;
       }
 
       setGoogleDriveAccessToken(result.accessToken);
+      setGoogleDriveAccessTokenExpiresAt(result.accessTokenExpiresAt);
       setSelectedDriveFiles((files) => mergeDriveSelections(files, result.files));
     } catch (err) {
       setDrivePickerError(
@@ -30,7 +38,7 @@ export function useContractsDrivePicker() {
     } finally {
       setIsOpeningDrivePicker(false);
     }
-  }, [googleDriveAccessToken]);
+  }, [googleDriveAccessToken, googleDriveAccessTokenExpiresAt, googleLoginHint]);
 
   const clearDriveSelection = useCallback(() => {
     setSelectedDriveFiles([]);

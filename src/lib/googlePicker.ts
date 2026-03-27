@@ -2,7 +2,15 @@ const GOOGLE_API_SCRIPT_ID = "google-api-script";
 const GOOGLE_GIS_SCRIPT_ID = "google-gis-script";
 const GOOGLE_API_SCRIPT_SRC = "https://apis.google.com/js/api.js";
 const GOOGLE_GIS_SCRIPT_SRC = "https://accounts.google.com/gsi/client";
-const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
+const GOOGLE_ACCESS_TOKEN_BUFFER_MS = 30_000;
+const GOOGLE_INTERACTIVE_ERROR_CODES = new Set([
+  "account_selection_required",
+  "consent_required",
+  "interaction_required",
+  "login_required",
+]);
+
+export const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
 
 const scriptPromises = new Map<string, Promise<void>>();
 let pickerLibraryPromise: Promise<void> | null = null;
@@ -22,11 +30,23 @@ type GooglePickerConfig = {
 
 type OpenGooglePickerOptions = {
   accessToken?: string | null;
+  accessTokenExpiresAt?: number | null;
+  loginHint?: string | null;
 };
 
 export type OpenGooglePickerResult = {
   accessToken: string;
+  accessTokenExpiresAt: number | null;
   files: GooglePickerFile[];
+};
+
+type GoogleOAuthError = Error & {
+  code?: string;
+};
+
+type GooglePickerAccessToken = {
+  accessToken: string;
+  accessTokenExpiresAt: number | null;
 };
 
 function getGooglePickerConfig(): GooglePickerConfig {
@@ -137,25 +157,65 @@ async function ensureGooglePickerReady(): Promise<void> {
   await pickerLibraryPromise;
 }
 
-function requestAccessToken(existingAccessToken?: string | null): Promise<string> {
+function createGoogleOAuthError(code?: string, description?: string): GoogleOAuthError {
+  const error = new Error(description ?? code ?? "No se pudo obtener un access token valido de Google.") as GoogleOAuthError;
+  error.name = "GoogleOAuthError";
+  error.code = code;
+  return error;
+}
+
+function getGoogleAuthPopupErrorMessage(type?: string): string {
+  switch (type) {
+    case "popup_closed":
+      return "Se cerro la ventana de autorizacion de Google antes de completar el proceso.";
+    case "popup_failed_to_open":
+      return "El navegador bloqueo la ventana de autorizacion de Google.";
+    default:
+      return "No se pudo completar la autorizacion con Google.";
+  }
+}
+
+function hasFreshAccessToken(accessToken?: string | null, accessTokenExpiresAt?: number | null): accessToken is string {
+  if (!accessToken || typeof accessTokenExpiresAt !== "number") {
+    return false;
+  }
+
+  return accessTokenExpiresAt - GOOGLE_ACCESS_TOKEN_BUFFER_MS > Date.now();
+}
+
+function shouldRetryInteractively(error: unknown): boolean {
+  return error instanceof Error && "code" in error && typeof error.code === "string"
+    ? GOOGLE_INTERACTIVE_ERROR_CODES.has(error.code)
+    : false;
+}
+
+function requestAccessToken(prompt: "" | "consent", loginHint?: string | null): Promise<GooglePickerAccessToken> {
   const { clientId } = getGooglePickerConfig();
 
-  return new Promise<string>((resolve, reject) => {
+  return new Promise<GooglePickerAccessToken>((resolve, reject) => {
     const tokenClient = window.google?.accounts?.oauth2?.initTokenClient({
       client_id: clientId,
       scope: GOOGLE_DRIVE_SCOPE,
+      login_hint: loginHint ?? undefined,
       callback: (response) => {
         if (response.error) {
-          reject(new Error(response.error_description ?? response.error));
+          reject(createGoogleOAuthError(response.error, response.error_description));
           return;
         }
 
         if (!response.access_token) {
-          reject(new Error("Google no devolvio un access token valido."));
+          reject(createGoogleOAuthError(undefined, "Google no devolvio un access token valido."));
           return;
         }
 
-        resolve(response.access_token);
+        resolve({
+          accessToken: response.access_token,
+          accessTokenExpiresAt:
+            typeof response.expires_in === "number" ? Date.now() + response.expires_in * 1_000 : null,
+        });
+      },
+      error_callback: (error) => {
+        reject(createGoogleOAuthError(error.type, getGoogleAuthPopupErrorMessage(error.type)));
       },
     });
 
@@ -164,8 +224,30 @@ function requestAccessToken(existingAccessToken?: string | null): Promise<string
       return;
     }
 
-    tokenClient.requestAccessToken({ prompt: existingAccessToken ? "" : "consent" });
+    tokenClient.requestAccessToken({
+      prompt,
+      login_hint: loginHint ?? undefined,
+    });
   });
+}
+
+async function resolveAccessToken(options: OpenGooglePickerOptions): Promise<GooglePickerAccessToken> {
+  if (hasFreshAccessToken(options.accessToken, options.accessTokenExpiresAt)) {
+    return {
+      accessToken: options.accessToken,
+      accessTokenExpiresAt: options.accessTokenExpiresAt ?? null,
+    };
+  }
+
+  try {
+    return await requestAccessToken("", options.loginHint);
+  } catch (error) {
+    if (!shouldRetryInteractively(error)) {
+      throw error;
+    }
+  }
+
+  return requestAccessToken("consent", options.loginHint);
 }
 
 function showPicker(accessToken: string): Promise<GooglePickerFile[] | null> {
@@ -229,12 +311,12 @@ export async function openGooglePicker(
   options: OpenGooglePickerOptions = {},
 ): Promise<OpenGooglePickerResult | null> {
   await ensureGooglePickerReady();
-  const accessToken = await requestAccessToken(options.accessToken);
+  const { accessToken, accessTokenExpiresAt } = await resolveAccessToken(options);
   const files = await showPicker(accessToken);
 
   if (!files) {
     return null;
   }
 
-  return { accessToken, files };
+  return { accessToken, accessTokenExpiresAt, files };
 }
