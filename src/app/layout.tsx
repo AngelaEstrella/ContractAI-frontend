@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import AuthBootstrap from "@/components/providers/AuthBootstrap";
 import "./globals.css";
 
 const inter = Inter({
@@ -21,9 +22,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="es">
       <body className={`${inter.variable} font-sans antialiased`}>
-        {children}
+        <AuthBootstrap>{children}</AuthBootstrap>
       </body>
     </html>
   );

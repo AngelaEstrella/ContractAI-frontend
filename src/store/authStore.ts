@@ -1,23 +1,41 @@
-import { create } from 'zustand';
-
-interface User {
-  id: number | string;
-  name: string;
-  email: string;
-  role: string;
-  avatarUrl?: string | null;
-}
+import { create } from "zustand";
+import type { AuthDisplayUser } from "@/lib/authUser";
 
 interface AuthState {
-  user: User | null;
+  user: AuthDisplayUser | null;
+  accessToken: string | null;
   isAuthenticated: boolean;
-  setUser: (user: User) => void;
+  isHydrating: boolean;
+  setHydrating: (isHydrating: boolean) => void;
+  setUser: (user: AuthDisplayUser) => void;
+  setSession: (user: AuthDisplayUser, accessToken: string | null) => void;
   logout: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
+  accessToken: null,
   isAuthenticated: false,
-  setUser: (user) => set({ user, isAuthenticated: true }),
-  logout: () => set({ user: null, isAuthenticated: false }),
+  isHydrating: true,
+  setHydrating: (isHydrating) => set({ isHydrating }),
+  setUser: (user) =>
+    set((state) => ({
+      user,
+      isAuthenticated: true,
+      accessToken: state.accessToken,
+    })),
+  setSession: (user, accessToken) =>
+    set({
+      user,
+      accessToken,
+      isAuthenticated: true,
+      isHydrating: false,
+    }),
+  logout: () =>
+    set({
+      user: null,
+      accessToken: null,
+      isAuthenticated: false,
+      isHydrating: false,
+    }),
 }));
