@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { deleteDocument, getDocumentFileUrl, getDocuments } from "@/lib/api";
+import { openGooglePicker, type GooglePickerFile } from "@/lib/googlePicker";
 import {
   DOCUMENT_STATE_OPTIONS,
   getDocumentFileLabel,
@@ -94,6 +95,26 @@ const getServiceCountLabel = (count: number): string => {
   return `${count} servicio${count === 1 ? "" : "s"}`;
 };
 
+const mergeDriveSelections = (
+  currentFiles: GooglePickerFile[],
+  nextFiles: GooglePickerFile[],
+): GooglePickerFile[] => {
+  const filesById = new Map(currentFiles.map((file) => [file.id, file]));
+
+  nextFiles.forEach((file) => {
+    filesById.set(file.id, file);
+  });
+
+  return Array.from(filesById.values());
+};
+
+const getDriveItemTypeLabel = (mimeType: string): string => {
+  if (mimeType === "application/vnd.google-apps.folder") return "Carpeta";
+  if (mimeType.startsWith("application/vnd.google-apps.")) return "Google Workspace";
+  const [, subtype] = mimeType.split("/");
+  return subtype ? subtype.toUpperCase() : "Archivo";
+};
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function ContractsPage() {
@@ -133,7 +154,10 @@ export default function ContractsPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFiles, setImportFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [driveToast, setDriveToast] = useState(false);
+  const [isOpeningDrivePicker, setIsOpeningDrivePicker] = useState(false);
+  const [drivePickerError, setDrivePickerError] = useState<string | null>(null);
+  const [googleDriveAccessToken, setGoogleDriveAccessToken] = useState<string | null>(null);
+  const [selectedDriveFiles, setSelectedDriveFiles] = useState<GooglePickerFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Import dropdown state
@@ -141,7 +165,10 @@ export default function ContractsPage() {
   const importDropdownRef = useRef<HTMLDivElement>(null);
 
   const activeFolder = folders.find((f) => f.id === activeFolderId)!;
-  const activeContracts = contractsByFolder[activeFolderId] ?? [];
+  const activeContracts = useMemo(
+    () => contractsByFolder[activeFolderId] ?? [],
+    [contractsByFolder, activeFolderId],
+  );
 
   // ─── Effects ─────────────────────────────────────────────────────────────
 
@@ -249,12 +276,29 @@ export default function ContractsPage() {
   const resetImportState = () => {
     setImportFiles([]);
     setIsDragging(false);
-    setDriveToast(false);
   };
 
-  const handleDriveClick = () => {
-    setDriveToast(true);
-    setTimeout(() => setDriveToast(false), 3000);
+  const handleDriveClick = async () => {
+    setDrivePickerError(null);
+    setShowImportDropdown(false);
+    setIsOpeningDrivePicker(true);
+
+    try {
+      const result = await openGooglePicker({ accessToken: googleDriveAccessToken });
+
+      if (!result || result.files.length === 0) {
+        return;
+      }
+
+      setGoogleDriveAccessToken(result.accessToken);
+      setSelectedDriveFiles((prev) => mergeDriveSelections(prev, result.files));
+    } catch (err) {
+      setDrivePickerError(
+        err instanceof Error ? err.message : "No se pudo abrir el selector de Google Drive.",
+      );
+    } finally {
+      setIsOpeningDrivePicker(false);
+    }
   };
 
   const handleImport = () => {
@@ -278,6 +322,10 @@ export default function ContractsPage() {
 
   const removeFile = (index: number) => {
     setImportFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removeDriveFile = (fileId: string) => {
+    setSelectedDriveFiles((prev) => prev.filter((file) => file.id !== fileId));
   };
 
   // ─── Delete ───────────────────────────────────────────────────────────────
@@ -375,11 +423,16 @@ export default function ContractsPage() {
   const ImportCombo = ({ align = "right" }: { align?: "left" | "right" }) => (
     <div ref={importDropdownRef} className="relative">
       <button
+        disabled={isOpeningDrivePicker}
         onClick={() => setShowImportDropdown((v) => !v)}
-        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm"
+        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm disabled:cursor-wait disabled:opacity-70"
       >
-        <Upload className="h-3.5 w-3.5" />
-        Importar
+        {isOpeningDrivePicker ? (
+          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700" />
+        ) : (
+          <Upload className="h-3.5 w-3.5" />
+        )}
+        {isOpeningDrivePicker ? "Abriendo Drive..." : "Importar"}
         <svg
           className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 ${showImportDropdown ? "rotate-180" : ""}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -391,13 +444,14 @@ export default function ContractsPage() {
       {showImportDropdown && (
         <div className={`absolute ${align === "right" ? "right-0" : "left-0"} top-full z-30 mt-1.5 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg`}>
           <button
-            onClick={() => { setShowImportDropdown(false); handleDriveClick(); }}
-            className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-700 transition-colors hover:bg-blue-50"
+            disabled={isOpeningDrivePicker}
+            onClick={() => { void handleDriveClick(); }}
+            className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-700 transition-colors hover:bg-blue-50 disabled:cursor-wait disabled:opacity-70"
           >
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50">
               <GoogleDriveIcon className="h-4 w-4" />
             </div>
-            <span>Google Drive</span>
+            <span>{isOpeningDrivePicker ? "Conectando..." : "Google Drive"}</span>
           </button>
         </div>
       )}
@@ -574,6 +628,90 @@ export default function ContractsPage() {
         </div>
       )}
 
+      {drivePickerError && (
+        <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {drivePickerError}
+        </div>
+      )}
+
+      {selectedDriveFiles.length > 0 && (
+        <section className="mb-4 rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50">
+                <GoogleDriveIcon className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-slate-800">
+                  Seleccion actual de Google Drive
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {selectedDriveFiles.length} elemento{selectedDriveFiles.length === 1 ? "" : "s"} seleccionado{selectedDriveFiles.length === 1 ? "" : "s"} para la carpeta {activeFolder.name}.
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  Ya puedes navegar Drive y escoger archivos; la importacion al backend sera la siguiente fase.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => { void handleDriveClick(); }}
+                disabled={isOpeningDrivePicker}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-wait disabled:opacity-70"
+              >
+                Seleccionar mas
+              </button>
+              <button
+                onClick={() => setSelectedDriveFiles([])}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+              >
+                Limpiar seleccion
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {selectedDriveFiles.map((file) => (
+              <article
+                key={file.id}
+                className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-800">{file.name}</p>
+                    <p className="mt-1 text-xs text-slate-500">ID: {file.id}</p>
+                  </div>
+                  <button
+                    onClick={() => removeDriveFile(file.id)}
+                    className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                    title="Quitar de la seleccion"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <span className="inline-flex rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-600">
+                    {getDriveItemTypeLabel(file.mimeType)}
+                  </span>
+                  {file.url && (
+                    <a
+                      href={file.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs font-medium text-blue-600 transition-colors hover:text-blue-700"
+                    >
+                      Abrir en Drive
+                    </a>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* ─── Empty state ───────────────────────────────────────────────────── */}
 
       {isEmpty ? (
@@ -593,12 +731,6 @@ export default function ContractsPage() {
             </button>
             <ImportCombo align="left" />
           </div>
-          {driveToast && (
-            <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700">
-              <GoogleDriveIcon className="h-4 w-4 flex-shrink-0" />
-              <span>Próximamente: Se abrirá el selector de Google Drive</span>
-            </div>
-          )}
         </div>
       ) : (
         <>
@@ -635,14 +767,6 @@ export default function ContractsPage() {
               </div>
             </div>
           </div>
-
-          {/* Drive toast — table view */}
-          {driveToast && (
-            <div className="mb-3 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700">
-              <GoogleDriveIcon className="h-4 w-4 flex-shrink-0" />
-              <span>Próximamente: Se abrirá el selector de Google Drive</span>
-            </div>
-          )}
 
           {/* Table */}
           <div className="flex flex-col rounded-2xl border border-slate-200/60 bg-white shadow-sm">

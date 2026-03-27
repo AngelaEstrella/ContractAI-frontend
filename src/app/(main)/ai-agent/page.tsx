@@ -174,7 +174,7 @@ export default function AIAgentPage() {
     try {
       const data = await getConversations();
       setConversations(data);
-    } catch (error) {
+    } catch {
       console.error('Error loading conversations:', error);
     }
   };
@@ -191,7 +191,7 @@ export default function AIAgentPage() {
       setMessages(loadedMessages);
       setThreadId(conversationId);
       setShowHistory(false);
-    } catch (error) {
+    } catch {
       console.error('Error loading conversation:', error);
     }
   };
@@ -230,7 +230,7 @@ export default function AIAgentPage() {
 
       setMessages((prev) => [...prev, botMessage]);
       setThreadId(response.thread_id);
-    } catch (error) {
+    } catch {
       const errorMessage: Message = {
         id: `error-${Date.now()}`,
         sender: 'bot',
