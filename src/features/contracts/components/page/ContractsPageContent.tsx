@@ -8,6 +8,7 @@ import { ContractsImportMenu } from "@/features/contracts/components/page/Contra
 import { ContractsTable } from "@/features/contracts/components/page/ContractsTable";
 import { ContractDeleteModal } from "@/features/contracts/components/modals/ContractDeleteModal";
 import { ContractFormModal } from "@/features/contracts/components/modals/ContractFormModal";
+import { ContractPreviewModal } from "@/features/contracts/components/modals/ContractPreviewModal";
 import { useContractsPage } from "@/features/contracts/hooks/use-contracts-page";
 import type { Document } from "@/types/api.types";
 
@@ -80,6 +81,16 @@ export function ContractsPageContent({
           void page.confirmDelete();
         }}
         open={page.showDeleteModal}
+      />
+
+      <ContractPreviewModal
+        contract={page.previewContract}
+        error={page.previewError}
+        loading={page.previewLoading}
+        onClose={page.closePreview}
+        onOpenInNewTab={page.openPreviewInNewTab}
+        open={page.showPreview}
+        previewUrl={page.previewUrl}
       />
 
       {page.drivePickerError && (
