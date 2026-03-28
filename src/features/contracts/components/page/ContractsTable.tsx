@@ -119,7 +119,8 @@ export function ContractsTable({
                       <button
                         onClick={() => onView(contract)}
                         className="rounded-lg p-2 text-slate-400 transition-all hover:bg-blue-50 hover:text-blue-600"
-                        title="Ver detalle"
+                        title="Vista previa"
+                        aria-label={`Vista previa de ${contract.name}`}
                       >
                         <Eye className="h-4 w-4" />
                       </button>

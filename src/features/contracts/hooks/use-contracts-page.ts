@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback } from "react";
-import { deleteDocument, getDocumentFileUrl } from "@/lib/api";
+import { deleteDocument } from "@/lib/api";
 import { useContractsCollection } from "@/features/contracts/hooks/use-contracts-collection";
+import { useContractPreview } from "@/features/contracts/hooks/use-contract-preview";
 import { useContractsDrivePicker } from "@/features/contracts/hooks/use-contracts-drive-picker";
 import { useContractsFilters } from "@/features/contracts/hooks/use-contracts-filters";
 import { useContractsModalState } from "@/features/contracts/hooks/use-contracts-modal-state";
@@ -73,6 +74,17 @@ export function useContractsPage({ shouldOpenCreateModal = false }: UseContracts
     showForm,
   } = useContractsModalState({ shouldOpenCreateModal });
 
+  const {
+    closePreview,
+    openPreview,
+    openPreviewInNewTab,
+    previewContract,
+    previewError,
+    previewLoading,
+    previewUrl,
+    showPreview,
+  } = useContractPreview();
+
   const updateContract = useCallback(
     (updatedContract: Document) => {
       updateCollectionContract(updatedContract);
@@ -98,16 +110,6 @@ export function useContractsPage({ shouldOpenCreateModal = false }: UseContracts
       setDeleting(false);
     }
   }, [closeDeleteModal, contractToDelete, removeContract, setDeleting]);
-
-  const viewContract = useCallback(async (contract: Document) => {
-    try {
-      const signedUrl = await getDocumentFileUrl(contract.id);
-      window.open(signedUrl, "_blank", "noopener,noreferrer");
-    } catch (err) {
-      console.error("Error al abrir documento:", err);
-      window.alert(err instanceof Error ? err.message : "No se pudo abrir el documento");
-    }
-  }, []);
 
   const createFolder = useCallback(
     (name: string) => {
@@ -136,6 +138,7 @@ export function useContractsPage({ shouldOpenCreateModal = false }: UseContracts
     closeCreateForm,
     closeDeleteModal,
     closeEditForm,
+    closePreview,
     confirmDelete,
     contractToDelete,
     contractToEdit,
@@ -154,23 +157,29 @@ export function useContractsPage({ shouldOpenCreateModal = false }: UseContracts
     isOpeningDrivePicker,
     itemsPerPage,
     loading,
+    openPreviewInNewTab,
     openCreateForm,
     openDeleteModal,
     openDrivePicker,
     openEditForm,
     paginatedContracts,
+    previewContract,
+    previewError,
+    previewLoading,
+    previewUrl,
     reloadContracts,
     removeDriveFile,
     safeCurrentPage,
     search,
     selectedDriveFiles,
     selectFolder,
+    showPreview,
     showDeleteModal,
     showEditForm,
     showForm,
     startIndex,
     totalPages,
     updateContract,
-    viewContract,
+    viewContract: openPreview,
   };
 }
