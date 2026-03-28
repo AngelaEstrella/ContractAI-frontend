@@ -9,6 +9,7 @@ import { ContractsTable } from "@/features/contracts/components/page/ContractsTa
 import { ContractDeleteModal } from "@/features/contracts/components/modals/ContractDeleteModal";
 import { ContractFormModal } from "@/features/contracts/components/modals/ContractFormModal";
 import { ContractPreviewModal } from "@/features/contracts/components/modals/ContractPreviewModal";
+import { NewContractModal } from "@/features/contracts/components/modals/NewContractModal";
 import { useContractsPage } from "@/features/contracts/hooks/use-contracts-page";
 import type { Document } from "@/types/api.types";
 
@@ -63,7 +64,7 @@ export function ContractsPageContent({
         onSelectFolder={page.selectFolder}
       />
 
-      <ContractFormModal onClose={page.closeCreateForm} onSubmit={page.addContract} open={page.showForm} />
+      <NewContractModal onClose={page.closeCreateForm} onSubmit={page.addContract} open={page.showForm} />
 
       <ContractFormModal
         editMode
