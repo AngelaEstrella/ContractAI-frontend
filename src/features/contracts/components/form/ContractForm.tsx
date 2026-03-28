@@ -242,7 +242,7 @@ export default function ContractForm({ onAdd, onClose, editMode = false, initial
           disabled={formState.loading}
           className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
         >
-          {formState.currentStep === 1 ? "Cancelar" : "← Anterior"}
+          {formState.currentStep === 1 ? "Volver" : "← Anterior"}
         </button>
 
         {formState.currentStep < 3 ? (
