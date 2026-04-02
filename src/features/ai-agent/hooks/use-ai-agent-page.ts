@@ -6,6 +6,7 @@ import { useLiveNow } from "@/features/ai-agent/hooks/use-live-now";
 import { mapConversationToMessages } from "@/features/ai-agent/lib/chat-utils";
 import type { ChatMessage } from "@/features/ai-agent/lib/chat.types";
 import type { Conversation } from "@/types/api.types";
+import { useAuthStore } from "@/store";
 
 export function useAIAgentPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -24,9 +25,13 @@ export function useAIAgentPage() {
   }, [messages]);
 
   const loadConversations = useCallback(async () => {
+    const user = useAuthStore.getState().user;
+    if (!user) return;
+    const userId = parseInt(user.id, 10);
+    if (isNaN(userId)) return;
     try {
       setIsHistoryLoading(true);
-      setConversations(await getConversations());
+      setConversations(await getConversations(userId));
     } catch (error) {
       console.error("Error loading conversations:", error);
     } finally {

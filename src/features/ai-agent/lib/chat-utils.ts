@@ -32,8 +32,8 @@ export const mapConversationToMessages = (
 ): ChatMessage[] => {
   return conversation.content.map((message, index) => ({
     id: `loaded-${index}`,
-    sender: message.sender === "user" ? "user" : "bot",
-    content: message.message,
-    timestamp: new Date(conversation.created_at),
+    sender: message.role === "user" ? "user" : "bot",
+    content: message.content,
+    timestamp: new Date(message.timestamp),
   }));
 };

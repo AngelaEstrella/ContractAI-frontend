@@ -18,9 +18,9 @@ export async function sendMessage(data: ChatRequest): Promise<ChatResponse> {
   );
 }
 
-export async function getConversations(): Promise<Conversation[]> {
+export async function getConversations(userId: number): Promise<Conversation[]> {
   return fetchAPI<Conversation[]>(
-    "/conversations",
+    `/conversations/user/${userId}`,
     {
       method: "GET",
     },

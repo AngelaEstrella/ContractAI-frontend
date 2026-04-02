@@ -65,11 +65,10 @@ export interface ChatResponse {
 // ============================================
 // CONVERSATION TYPES
 // ============================================
-export type MessageSender = 'user' | 'bot';
-
 export interface ConversationMessage {
-  sender: MessageSender;
-  message: string;
+  role: 'user' | 'bot';
+  content: string;
+  timestamp: string;
 }
 
 export interface Conversation {
